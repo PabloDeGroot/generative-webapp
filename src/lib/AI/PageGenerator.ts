@@ -5,6 +5,9 @@ const client = new Cerebras({
 });
 
 
+export async function GenerateImageFromRoute(route: string) {}
+
+
 export async function GenerateHtml(route: string) {
     const systemPrompt = `/no_think You are a highly specialized AI assistant. Your singular function is to act as an expert **Route-to-HTML Prompt Engineer**. You will receive a single URL route as input.
 
@@ -82,7 +85,7 @@ Execute this task with precision. Your goal is to empower the subsequent HTML-ge
 
 }
 async function RequestHtml(description: string) {
-    const systemPrompt = `/no_think ${description}`;
+    const systemPrompt = `/no_think `;
 
     let response = await client.chat.completions.create({
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: description }],
@@ -93,6 +96,7 @@ async function RequestHtml(description: string) {
 
     html = html.replaceAll(regex, "").trim();
     html = html.replace(/<think>/g, "").replace(/<\/think>/g, "").trim();
+    html = html.replace("```html", "").replace(">```", "").replace(">\n```", "").trim();
     html += "\n<!-- " + description + " -->";
     return html;
-}
+}1
