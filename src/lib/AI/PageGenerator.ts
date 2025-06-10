@@ -8,7 +8,7 @@ import OpenAI from 'openai';
 const client = new Cerebras({
     apiKey: "REMOVED_CEREBRAS_API_KEY",
 });
-
+//chutes fingerprint REMOVED_CHUTES_FINGERPRINT
 const router = new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
     apiKey: "REMOVED_OPENROUTER_API_KEY",
