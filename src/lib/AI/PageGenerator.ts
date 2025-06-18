@@ -4,31 +4,21 @@ import type { ChatCompletion } from '@cerebras/cerebras_cloud_sdk/resources.mjs'
 import { Runware } from '@runware/sdk-js';
 import Groq from "groq-sdk";
 import OpenAI from 'openai';
+import { CEREBRAS_API_KEY ,
+    GROQ_API_KEY,
+    RUNWARE_API_KEY } from '$env/static/private';
+    
 
 const client = new Cerebras({
-    apiKey: "REMOVED_CEREBRAS_API_KEY",
+    apiKey: CEREBRAS_API_KEY,
 });
-//chutes fingerprint REMOVED_CHUTES_FINGERPRINT
-const router = new OpenAI({
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: "REMOVED_OPENROUTER_API_KEY",
-});
-
-
-//groq key:
-//REMOVED_GROQ_API_KEY 
-
-//codestral
-//REMOVED_MISTRAL_API_KEY
-
 
 const groq = new Groq({
-    apiKey: "REMOVED_GROQ_API_KEY"
+    apiKey:  GROQ_API_KEY,
 
 });
 
-
-const runware = new Runware({ apiKey: "REMOVED_RUNWARE_API_KEY" });
+const runware = new Runware({ apiKey: RUNWARE_API_KEY });
 
 export async function GenerateHomePage() {
 
@@ -58,7 +48,8 @@ Style:
 
 async function GetImageDescriptionFromRoute(route: string) {
 
-    trackAIInteraction('image_description_generation_request', 'llama-3.3');
+    //trackAIInteraction('image_description_generation_request', 'llama-3.3');
+    trackAIInteraction('image_description_generation_request', 'llama3.1-8b');
 
     const systemPrompt = `/no_think You are an AI Image Description Generator. Your task is to interpret a descriptive URL route that points to an image and generate a rich, detailed textual description of what the image at that route could plausibly look like.
 
@@ -101,7 +92,7 @@ Example Output Description 3:
 
     let response = await client.chat.completions.create({
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: route }],
-        model: "llama-3.3-70b"
+        model: "llama3.1-8b"
     })
     let description = (response.choices as any)[0]?.message.content as string;
 
