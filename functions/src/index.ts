@@ -8,14 +8,12 @@
  */
 // gemini api key -> REMOVED_GEMINI_API_KEY
 
-import { onCall,  Request } from "firebase-functions/https";
+import { onCall,  onRequest,  Request } from "firebase-functions/https";
 import { GoogleGenAI, FunctionDeclaration, Type, Content, } from "@google/genai";
 import { getRemoteConfig, type ServerConfig } from "firebase-admin/remote-config";
 import { initializeApp } from "firebase-admin/app";
 import { GetHdri, GetModel } from "./asset-manager";
-
-
-
+import { mcpHandler } from "./mcp";
 const ai = new GoogleGenAI({ apiKey: "REMOVED_GEMINI_API_KEY" });
 
 // REMOVED_POLY_PIZZA_API_KEY -> poly.pizza
@@ -46,7 +44,15 @@ async function GetConfig(headers: Request): Promise<ServerConfig> {
     return config;
 }
 
+export const mcp = onRequest({
+    region: "europe-southwest1"
+}, async (request, response) => {
+    // This function will be called when the client calls the "mcp" function.
+    // You can use this function to handle MCP requests.
+    // For example, you can create an MCP server and handle requests using the mcpHandler function.
 
+    await mcpHandler(request, response);
+});
 
 
 export const generateContent = onCall({
