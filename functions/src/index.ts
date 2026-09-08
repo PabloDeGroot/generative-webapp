@@ -33,7 +33,6 @@ const feedbackEvaluatorPrompt = loadPrompt("feedback_evaluator");
 const componentInitializerPrompt = loadPrompt("component_initializer");
 const componentCuratorPrompt = loadPrompt("component_curator");
 
-// REMOVED_POLY_PIZZA_API_KEY -> poly.pizza
 const app = initializeApp();
 const log = logger.child("index");
 

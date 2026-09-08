@@ -3,8 +3,16 @@ const admin = require('firebase-admin');
 const axios = require('axios');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const OpenAI = require("openai");
+
+function requireEnv(name) {
+    const value = process.env[name];
+    if (!value) {
+        throw new Error(`Missing required environment variable: ${name}`);
+    }
+    return value;
+}
 const client = new OpenAI({
-    apiKey: "REMOVED_OPENAI_API_KEY"
+    apiKey: requireEnv("OPENAI_API_KEY")
 });
 
 
@@ -12,12 +20,12 @@ const client = new OpenAI({
 //const serviceAccount = require('../../credential.json');
 
 admin.initializeApp({
-    credential: admin.credential.cert("C:\\Users\\pablodegroot\\webgenerator-experiment\\ai-webpage-generator\\credential.json"),
-    storageBucket: 'generativewebpage.firebasestorage.app'
+    credential: admin.credential.cert(requireEnv("GOOGLE_APPLICATION_CREDENTIALS")),
+    storageBucket: requireEnv("PUBLIC_FIREBASE_STORAGE_BUCKET")
 });
 
 // Initialize Gemini AI
-const ai = new GoogleGenAI({ apiKey: "REMOVED_GEMINI_API_KEY" });
+const ai = new GoogleGenAI({ apiKey: requireEnv("GEMINI_API_KEY") });
 
 async function LoadModels(ai) {
     //https://api.poly.pizza/v1/user/Poly%20by%20Google
@@ -34,7 +42,7 @@ async function LoadModels(ai) {
 
             const response = await axios.get(`https://api.poly.pizza/v1/user/Poly%20by%20Google?page=${page}`, {
                 headers: {
-                    'x-auth-token': 'REMOVED_POLY_PIZZA_API_KEY' // poly.pizza api key
+                    'x-auth-token': requireEnv("POLY_PIZZA_API_KEY")
                 }
             });
 

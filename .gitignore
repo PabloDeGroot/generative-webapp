@@ -33,3 +33,19 @@ emulator-data_backup3/*
 metrics/
 Generative Web App.md
 .claude/worktrees/nifty-driscoll-8c45e2
+
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+functions/.env
+functions/.env.*
+!functions/.env.example
+credential.json
+*credential*.json
+serviceAccount*.json
+*.pem
+*.key
+
+# Local secret recovery file (never commit)
+SECRETS-FOUND.local.md

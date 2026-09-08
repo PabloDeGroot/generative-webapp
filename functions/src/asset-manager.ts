@@ -95,7 +95,10 @@ interface PolyPizzaAsset {
 }
 
 async function createEmbedding(input: string): Promise<number[]> {
-    const apiKey = process.env.OPENAI_API_KEY || "REMOVED_OPENAI_API_KEY";
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+        throw new Error("OPENAI_API_KEY is not set");
+    }
     const embeddingResponse = await axios.post<{ data: Array<{ embedding: number[] }> }>(
         "https://api.openai.com/v1/embeddings",
         {
