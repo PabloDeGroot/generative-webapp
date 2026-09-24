@@ -12,14 +12,26 @@ const componentDesignerPrompt = loadPrompt("component_designer");
 const componentCodegenPrompt = loadPrompt("component_codegen");
 const componentEvaluatorPrompt = loadPrompt("component_evaluator");
 import { GetUserPreferences, formatPreferencesForPrompt } from "./user-manager";
+import { currentToolkit } from "./toolkits/context";
 import { z } from "zod";
 
 const log = logger.child("component-manager");
 
-const COMPONENTS_COLLECTION = "components";
+// Each toolkit (site domain) has its own library:
+//   shared:   toolkits/{toolkitId}/components/{id}             (Storage: same path + .js)
+//   per-user: users/{uid}/toolkits/{toolkitId}/components/{id} (Storage: same path + .js)
+// The toolkit comes from the request context (currentToolkit()).
+const TOOLKITS_COLLECTION = "toolkits";
 const USERS_COLLECTION = "users";
-const USER_COMPONENTS_SUBCOLLECTION = "components";
-const COMPONENTS_STORAGE_PREFIX = "components";
+const COMPONENTS_SUBCOLLECTION = "components";
+
+function sharedLibraryPath(): string {
+    return `${TOOLKITS_COLLECTION}/${currentToolkit().id}/${COMPONENTS_SUBCOLLECTION}`;
+}
+
+function userLibraryPath(userId: string): string {
+    return `${USERS_COLLECTION}/${userId}/${TOOLKITS_COLLECTION}/${currentToolkit().id}/${COMPONENTS_SUBCOLLECTION}`;
+}
 const MAX_TOOL_CALLS_PER_GENERATION = 16;
 const MAX_RECURSION_DEPTH = 3;
 const MAX_CODEGEN_RETRIES = 1;
@@ -299,8 +311,8 @@ async function getAllComponentsFull(userId?: string | null): Promise<ComponentFu
     ensureFirebaseApp();
     const db = getFirestore();
     const [defaultSnap, userSnap] = await Promise.all([
-        db.collection(COMPONENTS_COLLECTION).limit(250).get(),
-        userId ? db.collection(USERS_COLLECTION).doc(userId).collection(USER_COMPONENTS_SUBCOLLECTION).limit(250).get() : Promise.resolve(null)
+        db.collection(sharedLibraryPath()).limit(250).get(),
+        userId ? db.collection(userLibraryPath(userId)).limit(250).get() : Promise.resolve(null)
     ]);
 
     const merged = new Map<string, ComponentFullRecord>();
@@ -366,9 +378,9 @@ export interface ResetComponentsResult {
 }
 
 /**
- * Wipes every default-scope and per-user-override component from Firestore and
- * the corresponding Storage objects. Built-in components are not stored, so
- * they are unaffected. Destructive — intended for dev/admin reset flows only.
+ * Wipes the current toolkit's shared and per-user-override components from Firestore and
+ * the corresponding Storage objects. Other toolkits' libraries are untouched, and built-in
+ * components are not stored. Destructive — intended for dev/admin reset flows only.
  */
 export async function ResetComponents(): Promise<ResetComponentsResult> {
     ensureFirebaseApp();
@@ -376,9 +388,10 @@ export async function ResetComponents(): Promise<ResetComponentsResult> {
     const bucket = getStorage().bucket();
     const stop = log.child("reset").time("reset");
 
-    // collectionGroup("components") matches both the top-level collection AND
-    // every users/{uid}/components subcollection, in one query.
-    const snap = await db.collectionGroup(USER_COMPONENTS_SUBCOLLECTION).get();
+    // collectionGroup("components") matches every library of every toolkit in one query;
+    // keep only this toolkit's: toolkits/{id}/components/* and users/{uid}/toolkits/{id}/components/*.
+    const toolkitId = currentToolkit().id;
+    const snap = await db.collectionGroup(COMPONENTS_SUBCOLLECTION).get();
 
     let defaultDocsDeleted = 0;
     let userDocsDeleted = 0;
@@ -389,12 +402,17 @@ export async function ResetComponents(): Promise<ResetComponentsResult> {
     const FIRESTORE_BATCH_LIMIT = 400;
 
     for (const doc of snap.docs) {
-        const userParent = doc.ref.parent.parent;
-        if (userParent) {
+        const segments = doc.ref.path.split("/");
+        const isShared = segments.length === 4 && segments[0] === TOOLKITS_COLLECTION && segments[1] === toolkitId;
+        const isUser = segments.length === 6 && segments[0] === USERS_COLLECTION
+            && segments[2] === TOOLKITS_COLLECTION && segments[3] === toolkitId;
+        if (isUser) {
             userDocsDeleted += 1;
-            userPrefixes.add(`${USERS_COLLECTION}/${userParent.id}/${COMPONENTS_STORAGE_PREFIX}/`);
-        } else {
+            userPrefixes.add(`${userLibraryPath(segments[1])}/`);
+        } else if (isShared) {
             defaultDocsDeleted += 1;
+        } else {
+            continue;
         }
         batch.delete(doc.ref);
         batchOps += 1;
@@ -406,7 +424,7 @@ export async function ResetComponents(): Promise<ResetComponentsResult> {
     }
     if (batchOps > 0) await batch.commit();
 
-    // Storage cleanup. Default-scope: blanket-delete the components/ prefix to
+    // Storage cleanup. Shared library: blanket-delete its prefix to
     // also catch orphans from doc-write failures. User-scope: only delete
     // prefixes derived from Firestore docs we actually saw, to avoid touching
     // anything else that might live under users/.
@@ -417,7 +435,7 @@ export async function ResetComponents(): Promise<ResetComponentsResult> {
         return files.length;
     };
 
-    storageObjectsDeleted += await deletePrefix(`${COMPONENTS_STORAGE_PREFIX}/`);
+    storageObjectsDeleted += await deletePrefix(`${sharedLibraryPath()}/`);
     for (const prefix of userPrefixes) {
         storageObjectsDeleted += await deletePrefix(prefix);
     }
@@ -1173,19 +1191,16 @@ function isObject(value: unknown): value is Record<string, unknown> {
 // Storage / Firestore helpers
 // ---------------------------------------------------------------------------
 
+function libraryPathFor(scope: Scope): string {
+    return scope.kind === "user" ? userLibraryPath(scope.userId) : sharedLibraryPath();
+}
+
 function objectPathFor(scope: Scope, id: string): string {
-    if (scope.kind === "user") {
-        return `${USERS_COLLECTION}/${scope.userId}/${COMPONENTS_STORAGE_PREFIX}/${id}.js`;
-    }
-    return `${COMPONENTS_STORAGE_PREFIX}/${id}.js`;
+    return `${libraryPathFor(scope)}/${id}.js`;
 }
 
 function docRefFor(scope: Scope, id: string) {
-    const db = getFirestore();
-    if (scope.kind === "user") {
-        return db.collection(USERS_COLLECTION).doc(scope.userId).collection(USER_COMPONENTS_SUBCOLLECTION).doc(id);
-    }
-    return db.collection(COMPONENTS_COLLECTION).doc(id);
+    return getFirestore().collection(libraryPathFor(scope)).doc(id);
 }
 
 async function readComponentDocAt(scope: Scope, id: string): Promise<ComponentDocument | null> {

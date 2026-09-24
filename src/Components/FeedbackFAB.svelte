@@ -10,6 +10,7 @@
     import { onAuthStateChanged, type User } from "firebase/auth";
     import { httpsCallable } from "firebase/functions";
     import { auth, functions } from "$lib/firebase.js";
+    import { pageToolkitId } from "$lib/toolkit";
 
     interface FeedbackAction {
         kind: string;
@@ -30,7 +31,7 @@
     let resultMessage = $state("");
     let errorMessage = $state("");
 
-    const evaluateFeedback = httpsCallable<{ feedback: string }, FeedbackResult>(functions, "evaluateFeedback");
+    const evaluateFeedback = httpsCallable<{ feedback: string; toolkit: string }, FeedbackResult>(functions, "evaluateFeedback");
 
     onMount(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -66,7 +67,7 @@
         resultMessage = "";
 
         try {
-            const response = await evaluateFeedback({ feedback: text });
+            const response = await evaluateFeedback({ feedback: text, toolkit: pageToolkitId() });
             resultMessage = response.data?.summary ?? "Feedback received.";
             feedback = "";
         } catch (error) {

@@ -7,8 +7,8 @@ import type { RequestHandler } from './$types';
 
 const log = logger.child('dev-storage');
 
-// Only component sources may be proxied: shared ones and per-user overrides.
-const ALLOWED_PATH = /^(components|users\/[^/]+\/components)\/[^/]+\.js$/;
+// Only component sources may be proxied: each toolkit's shared library and per-user overrides.
+const ALLOWED_PATH = /^(toolkits\/[^/]+\/components|users\/[^/]+\/toolkits\/[^/]+\/components)\/[^/]+\.js$/;
 
 // Dev-only proxy for component scripts; see $lib/dev-storage.ts.
 export const GET: RequestHandler = async ({ params }) => {

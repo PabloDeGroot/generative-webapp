@@ -26,7 +26,9 @@ import {
     type ComponentMutationResult
 } from "./component-manager";
 import { SaveUserPreference, GetUserPreferences, formatPreferencesForPrompt } from "./user-manager";
-import { activeToolkit } from "./toolkits/active";
+import { allToolkits, getToolkit } from "./toolkits/registry";
+import { currentToolkit, runWithToolkit } from "./toolkits/context";
+import type { DomainToolkit } from "./toolkits/types";
 import { loadPrompt, requireEnv } from "./prompt-loader";
 import { aiSecrets, openaiApiKey } from "./secrets";
 
@@ -45,6 +47,20 @@ const MCP_INVOKER = process.env.MCP_INVOKER_SERVICE_ACCOUNT?.trim() || "private"
 
 // AUTH_GATE (functions/.env): when on, only Google sign-ins count, matching the site's gate.
 const AUTH_GATE = /^(1|true|yes|on)$/i.test(process.env.AUTH_GATE?.trim() ?? "");
+
+// Functions that touch a component library take the site domain as data.toolkit (missing ->
+// the default toolkit) and run inside it, so library paths resolve to that toolkit.
+function resolveToolkitArg(data: unknown): DomainToolkit {
+    const raw = data && typeof data === "object" ? (data as { toolkit?: unknown }).toolkit : undefined;
+    if (raw !== undefined && typeof raw !== "string") {
+        throw new HttpsError("invalid-argument", "'toolkit' must be a string.");
+    }
+    try {
+        return getToolkit(raw);
+    } catch (error) {
+        throw new HttpsError("invalid-argument", error instanceof Error ? error.message : "Unknown toolkit.");
+    }
+}
 
 // Operator functions are onRequest, not onCall: Firebase ignores `invoker` on callable
 // functions and always deploys them public. They keep the callable wire format ({data} in,
@@ -65,7 +81,8 @@ function operatorFunction(
         }
         const data = req.body && typeof req.body === "object" ? req.body.data : undefined;
         try {
-            const result = await handler({ data, rawRequest: req });
+            const toolkit = resolveToolkitArg(data);
+            const result = await runWithToolkit(toolkit, () => handler({ data, rawRequest: req }));
             res.status(200).json({ result: result ?? null });
         } catch (error) {
             if (error instanceof HttpsError) {
@@ -104,7 +121,7 @@ async function GetConfig(headers: Request): Promise<ServerConfig> {
 export const mcp = onRequest({
     region: "europe-southwest1",
     invoker: MCP_INVOKER,
-    secrets: aiSecrets,
+    secrets: [...aiSecrets, ...allToolkits().flatMap((t) => t.secrets ?? [])],
     timeoutSeconds: 3600
 }, async (request, response) => {
     await mcpHandler(request, response);
@@ -267,7 +284,8 @@ export const evaluateFeedback = onCall({
     secrets: aiSecrets
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
-    return withRequestContext(requestId, { fn: "evaluateFeedback" }, async () => {
+    const toolkit = resolveToolkitArg(request.data);
+    return withRequestContext(requestId, { fn: "evaluateFeedback", toolkit: toolkit.id }, () => runWithToolkit(toolkit, async () => {
         const fbLog = log.child("evaluateFeedback");
         const stop = fbLog.time("call");
 
@@ -412,7 +430,7 @@ export const evaluateFeedback = onCall({
             actions: actions.map((a) => a.kind)
         });
         return payload;
-    });
+    }));
 });
 
 function parseFeedbackSummary(rawText: string, actions: FeedbackAction[]): { summary: string } {
@@ -507,8 +525,9 @@ function readStringField(obj: Record<string, unknown> | null, key: string): stri
 }
 
 function formatToolInventory(): string {
-    if (activeToolkit.tools.length === 0) return "(no domain tools registered)";
-    return activeToolkit.tools
+    const { tools } = currentToolkit();
+    if (tools.length === 0) return "(no domain tools registered)";
+    return tools
         .map((t) => `- ${t.name}: ${t.description}`)
         .join("\n");
 }
@@ -586,7 +605,7 @@ export const initializeComponents = operatorFunction({
         const existingSummaries = await GetAllComponents();
         const userMessage = [
             `Initial prompt:\n${operatorPrompt}`,
-            `Domain description:\n${activeToolkit.description}`,
+            `Domain description:\n${currentToolkit().description}`,
             `Available domain tools:\n${formatToolInventory()}`,
             `Existing components (already in the library — do not duplicate):\n${formatComponentSummariesForPrompt(existingSummaries)}`,
             "Plan the foundational archetypes for this domain, then call CreateComponent for each gap. Emit the final JSON summary when done."
@@ -699,7 +718,7 @@ export const updateComponents = operatorFunction({
         const existingSummaries = await GetAllComponents();
         const userMessage = [
             `Curation prompt:\n${operatorPrompt}`,
-            `Domain description:\n${activeToolkit.description}`,
+            `Domain description:\n${currentToolkit().description}`,
             `Available domain tools:\n${formatToolInventory()}`,
             `Existing components (the candidates for change):\n${formatComponentSummariesForPrompt(existingSummaries)}`,
             "Identify the components the prompt targets, then call UpdateComponent for each. Emit the final JSON summary when done."

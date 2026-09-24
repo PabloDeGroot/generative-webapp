@@ -3,6 +3,7 @@ import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import { Runware } from '@runware/sdk-js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { GoogleAuth } from 'google-auth-library';
+import { getRequestToolkit } from '$lib/server/toolkit';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { error as httpError } from '@sveltejs/kit';
 import { dev } from '$app/environment';
@@ -107,12 +108,13 @@ async function withMcpClient<T>(
     const authorizationHeader = idToken
         ? `Bearer ${idToken}`
         : request.headers.get('authorization');
-    const headers: Record<string, string> = {};
+    // X-Toolkit-Id selects the site domain: its tools, description and component library.
+    const headers: Record<string, string> = { 'X-Toolkit-Id': getRequestToolkit(request) };
     if (authorizationHeader) headers.Authorization = authorizationHeader;
     const invokerToken = await fetchMcpInvokerToken(mcpUrl);
     if (invokerToken) headers['X-Serverless-Authorization'] = `Bearer ${invokerToken}`;
     const transport = new StreamableHTTPClientTransport(mcpUrl, {
-        requestInit: Object.keys(headers).length ? { headers } : undefined
+        requestInit: { headers }
     });
     const mcp = new Client({ name: 'ai-webpage-generator', version: '1.0.0' });
 

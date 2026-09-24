@@ -10,7 +10,9 @@ import {
     GetComponents,
     UpdateComponent
 } from "./component-manager";
-import { activeToolkit } from "./toolkits/active";
+import { getToolkit } from "./toolkits/registry";
+import { currentToolkit, runWithToolkit } from "./toolkits/context";
+import type { DomainToolkit } from "./toolkits/types";
 import { generateRequestId, logger, withRequestContext } from "./logger";
 interface AuthContext {
     userId: string | null;
@@ -74,7 +76,7 @@ const registerTools = (mcp: McpServer, authContext: AuthContext) => {
         }, instrument("UpdateComponent", async ({ id, prompt }) => UpdateComponent(id, prompt, userId)));
     }
 
-    for (const tool of activeToolkit.tools) {
+    for (const tool of currentToolkit().tools) {
         if (tool.requiresAuth && !userId) continue;
         mcp.registerTool(tool.name, {
             description: tool.description,
@@ -104,16 +106,12 @@ function toToolContent(payload: unknown) {
 // }
 
 async function resolveAuthContext(request: IncomingMessage): Promise<AuthContext> {
-    //debug userid
-    if (process.env.FUNCTIONS_EMULATOR == "true" == true) {
-        return {
-            userId: "emulator-user",
-            authError: null
-        };
-
-
-    }
     const bearerToken = extractBearerToken(request.headers.authorization);
+    // In the emulator, requests without a token act as a placeholder user so tools that need
+    // one can be tried out; a real (auth-emulator) token still identifies its own user.
+    if (!bearerToken && process.env.FUNCTIONS_EMULATOR === "true") {
+        return { userId: "emulator-user", authError: null };
+    }
     if (!bearerToken) {
         return {
             userId: null,
@@ -161,17 +159,29 @@ function ensureFirebaseApp(): void {
 export async function mcpHandler(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const requestId = (request.headers["x-request-id"] as string | undefined) ?? generateRequestId();
 
+    // The SvelteKit server names the site domain in X-Toolkit-Id (missing -> default toolkit).
+    const toolkitHeader = request.headers["x-toolkit-id"];
+    let toolkit: DomainToolkit;
+    try {
+        toolkit = getToolkit(Array.isArray(toolkitHeader) ? toolkitHeader[0] : toolkitHeader);
+    } catch (error) {
+        log.warn("unknown_toolkit", { toolkitHeader, error });
+        response.statusCode = 400;
+        response.end(error instanceof Error ? error.message : "Unknown toolkit");
+        return;
+    }
+
     await withRequestContext(
         requestId,
-        { ip: request.socket?.remoteAddress, ua: request.headers["user-agent"] },
-        async () => {
+        { ip: request.socket?.remoteAddress, ua: request.headers["user-agent"], toolkit: toolkit.id },
+        () => runWithToolkit(toolkit, async () => {
             const stop = log.time("session");
             const transport = new StreamableHTTPServerTransport({
                 enableJsonResponse: true
             });
-            const description = activeToolkit.getDescription
-                ? await activeToolkit.getDescription()
-                : activeToolkit.description;
+            const description = toolkit.getDescription
+                ? await toolkit.getDescription()
+                : toolkit.description;
             const mcp = new McpServer(
                 {
                     name: "MCP management server",
@@ -203,6 +213,6 @@ export async function mcpHandler(request: IncomingMessage, response: ServerRespo
                     response.end("Internal MCP error");
                 }
             }
-        }
+        })
     );
 }

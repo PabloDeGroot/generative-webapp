@@ -3,12 +3,10 @@ import { getStorage } from 'firebase-admin/storage';
 import { dev } from '$app/environment';
 import { devStorageUrl } from '$lib/dev-storage';
 import { logger } from '$lib/logger';
+import { sharedLibraryPath, userLibraryPath } from '$lib/toolkit';
 import '$lib/firebase_admin';
 
 const log = logger.child('component-loader');
-const COMPONENTS_COLLECTION = 'components';
-const USERS_COLLECTION = 'users';
-const USER_COMPONENTS_SUBCOLLECTION = 'components';
 const SIGNED_URL_TTL_MS = 60 * 60 * 1000;
 
 // Kept in sync with BUILT_IN_COMPONENTS in functions/src/component-manager.ts.
@@ -23,9 +21,9 @@ export interface ComponentScriptRef {
     src: string;
     shortDesc: string;
 }
-async function getDependenciesOfComponent(id: string): Promise<string[]> {
+async function getDependenciesOfComponent(id: string, toolkitId: string): Promise<string[]> {
     const db = getFirestore();
-    const doc = await db.collection(COMPONENTS_COLLECTION).doc(id).get();
+    const doc = await db.collection(sharedLibraryPath(toolkitId)).doc(id).get();
     if (!doc.exists) {
         return [];
     }
@@ -37,6 +35,7 @@ async function getDependenciesOfComponent(id: string): Promise<string[]> {
 }
 export async function resolveComponentScripts(
     ids: string[],
+    toolkitId: string,
     userId?: string | null
 ): Promise<ComponentScriptRef[]> {
     const uniqueIds = Array.from(new Set(ids.filter((id) => typeof id === 'string' && id.trim().length > 0)));
@@ -51,7 +50,7 @@ export async function resolveComponentScripts(
     const builtIns = uniqueIds.filter((id) => BUILT_IN_COMPONENT_IDS.has(id));
     let allIdsToResolve = new Set(externalIds);
     for (const id of externalIds) {
-        const deps = await getDependenciesOfComponent(id);
+        const deps = await getDependenciesOfComponent(id, toolkitId);
         deps.forEach((dep) => allIdsToResolve.add(dep));
     }
     let allIdsArray = Array.from(allIdsToResolve);
@@ -59,9 +58,9 @@ export async function resolveComponentScripts(
 
     const docPairs = await Promise.all(allIdsArray.map(async (id) => {
         const [defaultDoc, userDoc] = await Promise.all([
-            db.collection(COMPONENTS_COLLECTION).doc(id).get(),
+            db.collection(sharedLibraryPath(toolkitId)).doc(id).get(),
             userId
-                ? db.collection(USERS_COLLECTION).doc(userId).collection(USER_COMPONENTS_SUBCOLLECTION).doc(id).get()
+                ? db.collection(userLibraryPath(userId, toolkitId)).doc(id).get()
                 : Promise.resolve(null as DocumentSnapshot | null)
         ]);
         return { id, defaultDoc, userDoc };

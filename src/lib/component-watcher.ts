@@ -1,5 +1,6 @@
 import { db, auth } from '$lib/firebase';
 import { devStorageUrl } from '$lib/dev-storage';
+import { pageToolkitId, sharedLibraryPath, userLibraryPath } from '$lib/toolkit';
 import { doc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -26,6 +27,7 @@ function gsPathToPublicUrl(gsPath: string): string | null {
  * Returns a cleanup function that unsubscribes all listeners.
  */
 export function watchComponents(componentIds: string[]): () => void {
+    const toolkitId = pageToolkitId();
     if (!componentIds.length) return () => {};
 
     const baseline = new Map<string, number>();
@@ -98,13 +100,13 @@ export function watchComponents(componentIds: string[]): () => void {
     }
 
     for (const id of componentIds) {
-        subscribe(['components', id], id);
+        subscribe([...sharedLibraryPath(toolkitId).split('/'), id], id);
     }
 
     const authUnsub = onAuthStateChanged(auth, (user) => {
         if (!user) return;
         for (const id of componentIds) {
-            subscribe(['users', user.uid, 'components', id], id);
+            subscribe([...userLibraryPath(user.uid, toolkitId).split('/'), id], id);
         }
     });
     unsubscribers.push(authUnsub);

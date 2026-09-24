@@ -6,14 +6,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Shared component library: any visitor may watch a single component for hot
-    // reloads (the component scripts themselves are public). Listing is not allowed.
-    match /components/{componentId} {
+    // Each toolkit's shared component library: any visitor may watch a single component for
+    // hot reloads (the component scripts themselves are public). Listing is not allowed.
+    match /toolkits/{toolkitId}/components/{componentId} {
       allow get: if true;
     }
 
     // Per-user component overrides: only the owning signed-in user may watch them.
-    match /users/{userId}/components/{componentId} {
+    match /users/{userId}/toolkits/{toolkitId}/components/{componentId} {
       allow get: if request.auth != null && request.auth.uid == userId;
     }
 

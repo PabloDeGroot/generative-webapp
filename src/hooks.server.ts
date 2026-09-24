@@ -8,6 +8,7 @@ declare global {
             userId?: string;
             idToken?: string;
             signInProvider?: string;
+            toolkitId: string;
         }
         // interface PageData {}
         // interface Platform {}
@@ -24,6 +25,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import './lib/firebase_admin';
 import { authGateEnabled, GATE_SIGN_IN_PROVIDER } from '$lib/server/auth-gate';
 import { getSessionField, setSessionField } from '$lib/server/session-cookie';
+import { resolveToolkitId, setRequestToolkit } from '$lib/server/toolkit';
 
 const log = logger.child('hooks');
 
@@ -118,8 +120,10 @@ export const handle: Handle = async ({ event, resolve }) => {
                 requestId,
                 userId: auth.userId,
                 idToken: auth.idToken,
-                signInProvider: auth.signInProvider
+                signInProvider: auth.signInProvider,
+                toolkitId: resolveToolkitId(event.request, event.url)
             };
+            setRequestToolkit(event.request, event.locals.toolkitId);
 
             const userAgent = event.request.headers.get('user-agent') || '';
             if (!userAgent) {
@@ -185,7 +189,10 @@ export const handle: Handle = async ({ event, resolve }) => {
                     return response;
                 }
 
-                const response = await withPageMetrics(requestId, pathname, () => Promise.resolve(resolve(event)));
+                const response = await withPageMetrics(requestId, pathname, () => Promise.resolve(resolve(event, {
+                    // app.html: <html data-toolkit="%toolkit%"> tells browser code which library to use.
+                    transformPageChunk: ({ html }) => html.replace('%toolkit%', event.locals.toolkitId)
+                })));
                 response.headers.set('Cache-Control', 'private, no-cache');
                 response.headers.set('vary', 'Cookie, Accept');
                 response.headers.set('X-Robots-Tag', 'noindex, nofollow');
