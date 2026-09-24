@@ -15,11 +15,11 @@ declare global {
 
 import { GenerateImageFromRoute, HandleAction } from '$lib/AI/PageGenerator';
 import { logServerSideEvent } from '$lib/server_analytics';
-import { db, collection, addDoc, serverTimestamp } from './lib/firebase';
 import { generateRequestId, logger, withRequestContext } from '$lib/logger';
 import { withPageMetrics } from '$lib/metrics';
 import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { getAuth } from 'firebase-admin/auth';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import './lib/firebase_admin';
 
 const log = logger.child('hooks');
@@ -36,11 +36,15 @@ async function handleImageRequest(event: RequestEvent, pathname: string): Promis
     if (lastDotIndex > 0) imageKey = imageKey.substring(0, lastDotIndex);
 
     const requestHeaders: Record<string, string> = {};
-    event.request.headers.forEach((value, key) => { requestHeaders[key] = value; });
+    // Credentials stay out of the log: the authToken cookie is a live Firebase ID token.
+    event.request.headers.forEach((value, key) => {
+        if (key !== 'cookie' && key !== 'authorization') requestHeaders[key] = value;
+    });
 
+    // firebase-admin: firestore.rules deny all client-SDK writes.
     try {
-        await addDoc(collection(db, 'imageAccessLog'), {
-            timestamp: serverTimestamp(),
+        await getFirestore().collection('imageAccessLog').add({
+            timestamp: FieldValue.serverTimestamp(),
             method: event.request.method,
             url: event.request.url,
             pathname: event.url.pathname,

@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// These rules only govern the client SDK. Cloud Functions and the SvelteKit server use
+// firebase-admin, which bypasses them, so every write in the app goes through the server
+// and clients get read access only where src/lib/component-watcher.ts needs it.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Shared component library: any visitor may watch a single component for hot
+    // reloads (the component scripts themselves are public). Listing is not allowed.
+    match /components/{componentId} {
+      allow get: if true;
+    }
+
+    // Per-user component overrides: only the owning signed-in user may watch them.
+    match /users/{userId}/components/{componentId} {
+      allow get: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Everything else is denied by default.
+  }
+}
