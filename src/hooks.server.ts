@@ -23,10 +23,10 @@ import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import './lib/firebase_admin';
 import { authGateEnabled, GATE_SIGN_IN_PROVIDER } from '$lib/server/auth-gate';
+import { getSessionField, setSessionField } from '$lib/server/session-cookie';
 
 const log = logger.child('hooks');
 
-const AUTH_COOKIE_NAME = 'authToken';
 const SESSION_AUTH_PATH = '/__session-auth';
 const IMAGE_PATH = /\.(png|jpg|jpeg|gif|webp|avif|svg)$/i;
 const FAVICON_PATH = /favicon\.(png|ico)$/i;
@@ -40,7 +40,7 @@ async function handleImageRequest(event: RequestEvent, pathname: string): Promis
     if (lastDotIndex > 0) imageKey = imageKey.substring(0, lastDotIndex);
 
     const requestHeaders: Record<string, string> = {};
-    // Credentials stay out of the log: the authToken cookie is a live Firebase ID token.
+    // Credentials stay out of the log: the __session cookie holds a live Firebase ID token.
     event.request.headers.forEach((value, key) => {
         if (key !== 'cookie' && key !== 'authorization') requestHeaders[key] = value;
     });
@@ -89,14 +89,14 @@ async function handleImageRequest(event: RequestEvent, pathname: string): Promis
 }
 
 async function resolveAuth(event: RequestEvent): Promise<{ userId?: string; idToken?: string; signInProvider?: string }> {
-    const idToken = event.cookies.get(AUTH_COOKIE_NAME);
+    const idToken = getSessionField(event.cookies, 'auth');
     if (!idToken) return {};
     try {
         const decoded = await getAuth().verifyIdToken(idToken);
         return { userId: decoded.uid, idToken, signInProvider: decoded.firebase?.sign_in_provider };
     } catch (error) {
         log.warn('auth_cookie_invalid', { error });
-        event.cookies.delete(AUTH_COOKIE_NAME, { path: '/' });
+        setSessionField(event.cookies, 'auth', undefined);
         return {};
     }
 }
@@ -111,7 +111,7 @@ export const handle: Handle = async ({ event, resolve }) => {
             path: event.url.pathname
         },
         async () => {
-            const validationCookie = event.cookies.get('__session');
+            const validationCookie = getSessionField(event.cookies, 'appCheck');
             const auth = await resolveAuth(event);
             event.locals = {
                 validationCookie: validationCookie || undefined,

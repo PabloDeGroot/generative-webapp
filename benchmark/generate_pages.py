@@ -28,6 +28,7 @@ import os
 import re
 import sys
 import time
+from urllib.parse import urlencode
 from pathlib import Path
 
 import requests
@@ -74,8 +75,10 @@ def process_task(
     url = f"{app_url.rstrip('/')}/{slug}"
 
     if id_token:
+        # The app keeps its session in the __session cookie (the only one Firebase Hosting
+        # forwards), as URL-encoded fields; the Firebase ID token is the "auth" field.
         page.context.add_cookies([
-            {"name": "authToken", "value": id_token, "url": app_url}
+            {"name": "__session", "value": urlencode({"auth": id_token}), "url": app_url}
         ])
 
     t0 = time.monotonic()

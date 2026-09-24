@@ -2,6 +2,7 @@ import type { LayoutServerLoad } from './$types';
 import { getAppCheck } from 'firebase-admin/app-check';
 import { logger } from '$lib/logger';
 import { authGateEnabled, GATE_SIGN_IN_PROVIDER } from '$lib/server/auth-gate';
+import { setSessionField } from '$lib/server/session-cookie';
 import '$lib/firebase_admin';
 
 const log = logger.child('layout');
@@ -26,7 +27,7 @@ export const load: LayoutServerLoad = async (data) => {
             log.debug('app_check_ok');
         } catch (error) {
             log.warn('app_check_invalid', { error });
-            data.cookies.delete('__session', { path: '/' });
+            setSessionField(data.cookies, 'appCheck', undefined);
             validationCookie = undefined;
         }
     } else {

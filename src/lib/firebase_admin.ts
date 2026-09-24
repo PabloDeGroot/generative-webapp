@@ -10,7 +10,8 @@ if (dev) {
     process.env.FIREBASE_STORAGE_EMULATOR_HOST ??= '127.0.0.1:9199';
 }
 
-let app = initializeApp({
+// Reuse the app when this module is evaluated again (Vite re-runs server modules on hot reload).
+const app = getApps()[0] ?? initializeApp({
     credential: applicationDefault(),
     projectId: PUBLIC_FIREBASE_PROJECT_ID
 });

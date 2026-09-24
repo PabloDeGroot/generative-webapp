@@ -1,5 +1,6 @@
 import { getAppCheck } from "firebase-admin/app-check";
 import { logger } from "$lib/logger";
+import { setSessionField } from "$lib/server/session-cookie";
 
 import type { RequestHandler } from './$types';
 
@@ -30,12 +31,6 @@ export const POST: RequestHandler = async (event) => {
         });
     }
 
-    event.cookies.set('__session', token, {
-        httpOnly: false,
-        secure: true,
-        sameSite: 'none',
-        expires: new Date(Date.now() + 60 * 60 * 1000),
-        path: '/'
-    });
+    setSessionField(event.cookies, 'appCheck', token);
     return new Response('App Check token set successfully', { status: 200 });
 };

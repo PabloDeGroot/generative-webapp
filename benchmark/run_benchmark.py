@@ -27,7 +27,7 @@ Required env vars:
   ANTHROPIC_API_KEY    (or OPENAI_API_KEY if using GPT models)
 
 Optional env vars:
-  BENCHMARK_ID_TOKEN   Firebase ID token — sets authToken cookie for user identity
+  BENCHMARK_ID_TOKEN   Firebase ID token — sets the __session cookie for user identity
   FUNCTIONS_URL        Override --functions-url
   APPEARANCE_MODEL     Override --appearance-model
   FUNCTIONAL_MODEL     Override --functional-model
