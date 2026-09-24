@@ -6,7 +6,7 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-import { HttpsError, onCall, onRequest, Request, type CallableRequest } from "firebase-functions/https";
+import { HttpsError, onCall, onRequest, Request, type CallableRequest, type HttpsOptions } from "firebase-functions/https";
 import { generateText, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
 import { getRemoteConfig, type ServerConfig } from "firebase-admin/remote-config";
@@ -38,14 +38,45 @@ const app = initializeApp();
 const log = logger.child("index");
 
 // Access control. Deploy applies the IAM invoker settings; the emulator ignores them.
-// - "private": only project principals with run.invoker (owners) can call, using a Google
-//   identity token. Operator functions are called with scripts/call-function.mjs.
+// - Operator functions (operatorFunction below) are private: only project principals with
+//   run.invoker (owners) can call them, with a Google identity token (scripts/call-function.mjs).
 // - mcp: only the SvelteKit server may call it; it runs as this service account (functions/.env).
-const OPERATOR_INVOKER = "private";
 const MCP_INVOKER = process.env.MCP_INVOKER_SERVICE_ACCOUNT?.trim() || "private";
 
 // AUTH_GATE (functions/.env): when on, only Google sign-ins count, matching the site's gate.
 const AUTH_GATE = /^(1|true|yes|on)$/i.test(process.env.AUTH_GATE?.trim() ?? "");
+
+// Operator functions are onRequest, not onCall: Firebase ignores `invoker` on callable
+// functions and always deploys them public. They keep the callable wire format ({data} in,
+// {result} or {error: {message, status}} out), so callers need no changes.
+interface OperatorRequest {
+    data: Record<string, unknown> | undefined;
+    rawRequest: Request;
+}
+
+function operatorFunction(
+    options: { secrets?: HttpsOptions["secrets"]; timeoutSeconds?: number },
+    handler: (request: OperatorRequest) => Promise<unknown>
+) {
+    return onRequest({ region: "europe-southwest1", invoker: "private", ...options }, async (req, res) => {
+        if (req.method !== "POST") {
+            res.status(405).json({ error: { message: "Use POST.", status: "INVALID_ARGUMENT" } });
+            return;
+        }
+        const data = req.body && typeof req.body === "object" ? req.body.data : undefined;
+        try {
+            const result = await handler({ data, rawRequest: req });
+            res.status(200).json({ result: result ?? null });
+        } catch (error) {
+            if (error instanceof HttpsError) {
+                res.status(error.httpErrorCode.status).json({ error: error.toJSON() });
+                return;
+            }
+            log.error("operator_function_failed", { error });
+            res.status(500).json({ error: { message: "INTERNAL", status: "INTERNAL" } });
+        }
+    });
+}
 
 function requireSignedIn(request: CallableRequest): string {
     const auth = request.auth;
@@ -498,11 +529,9 @@ function readOperatorPrompt(raw: unknown, fieldName: string): string {
     return trimmed;
 }
 
-export const initializeComponents = onCall({
-    region: "europe-southwest1",
-    invoker: OPERATOR_INVOKER,
+export const initializeComponents = operatorFunction({
     secrets: aiSecrets,
-    timeoutSeconds: 3600 // the maximum for HTTP-triggered (callable) functions
+    timeoutSeconds: 3600 // the maximum for HTTP-triggered functions
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
     return withRequestContext(requestId, { fn: "initializeComponents" }, async () => {
@@ -613,9 +642,7 @@ export const initializeComponents = onCall({
     });
 });
 
-export const updateComponents = onCall({
-    region: "europe-southwest1",
-    invoker: OPERATOR_INVOKER,
+export const updateComponents = operatorFunction({
     secrets: aiSecrets
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
@@ -737,10 +764,7 @@ export const updateComponents = onCall({
 
 const RESET_CONFIRMATION_TOKEN = "RESET";
 
-export const resetComponents = onCall({
-    region: "europe-southwest1",
-    invoker: OPERATOR_INVOKER
-}, async (request) => {
+export const resetComponents = operatorFunction({}, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
     return withRequestContext(requestId, { fn: "resetComponents" }, async () => {
         const resetLog = log.child("resetComponents");
