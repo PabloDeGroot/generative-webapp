@@ -1,6 +1,6 @@
 // Site domains ("toolkits") the app can serve. Keep in sync with the registry in
 // functions/src/toolkits/registry.ts.
-export const KNOWN_TOOLKIT_IDS = ['dictionary', 'travel', 'demo'] as const;
+export const KNOWN_TOOLKIT_IDS = ['dictionary', 'travel', 'community', 'demo'] as const;
 
 // Each toolkit has its own component library (see functions/src/component-manager.ts):
 // shared components, plus per-user overrides.
