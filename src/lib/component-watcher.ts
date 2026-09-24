@@ -1,4 +1,5 @@
 import { db, auth } from '$lib/firebase';
+import { devStorageUrl } from '$lib/dev-storage';
 import { doc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -7,7 +8,7 @@ function gsPathToPublicUrl(gsPath: string): string | null {
     if (!match) return null;
     const [, bucket, objectPath] = match;
     if (import.meta.env.DEV) {
-        return `http://127.0.0.1:9199/v0/b/${bucket}/o/${encodeURIComponent(objectPath)}?alt=media`;
+        return devStorageUrl(bucket, objectPath);
     }
     const encoded = objectPath.split('/').map(encodeURIComponent).join('/');
     return `https://storage.googleapis.com/${bucket}/${encoded}`;

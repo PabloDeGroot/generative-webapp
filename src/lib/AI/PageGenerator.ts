@@ -3,6 +3,7 @@ import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import { Runware } from '@runware/sdk-js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { error as httpError } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { PUBLIC_FIREBASE_PROJECT_ID } from '$env/static/public';
@@ -271,6 +272,49 @@ async function runMcpToolLoop(input: {
             });
 
             result.finalText = generation.text ?? '';
+
+            // The step budget ran out while the model was still calling tools, so it never wrote
+            // its answer. Ask once more with tools disabled, so it answers from what it gathered.
+            if (!result.finalText.trim() && generation.finishReason === 'tool-calls') {
+                const finalStartedAt = new Date();
+                const finalStop = loopLog.time('final_answer');
+                try {
+                    const final = await generateText({
+                        model: resolveLanguageModel(input.model),
+                        system: systemPrompt,
+                        messages: [
+                            { role: 'user', content: input.userPrompt },
+                            ...generation.response.messages,
+                            {
+                                role: 'user',
+                                content: 'You have used your whole tool budget. Using only the information gathered above, reply now with your final answer in the required format.'
+                            }
+                        ],
+                        tools: tools as Parameters<typeof generateText>[0]['tools'],
+                        toolChoice: 'none'
+                    });
+                    result.finalText = final.text ?? '';
+                    const finalDuration = finalStop({
+                        ok: Boolean(result.finalText.trim()),
+                        finish_reason: final.finishReason,
+                        total_tokens: final.totalUsage.totalTokens
+                    });
+                    recordLlmCall({
+                        phase: `designer.${input.scope}.final_answer`,
+                        model: input.model,
+                        durationMs: finalDuration,
+                        inputTokens: final.totalUsage.inputTokens,
+                        outputTokens: final.totalUsage.outputTokens,
+                        totalTokens: final.totalUsage.totalTokens,
+                        finishReason: final.finishReason,
+                        startedAt: finalStartedAt,
+                    });
+                } catch (error) {
+                    finalStop({ ok: false, error });
+                    loopLog.error('final_answer_failed', { error });
+                }
+            }
+
             loopLog.info('loop_complete', {
                 iterations: generation.steps.length,
                 tool_calls_total: result.toolInvocations.length,
@@ -476,6 +520,12 @@ export async function GenerateHtml(request: Request, route: string, idToken?: st
         page_spec: JSON.stringify(designed.pageSpec),
         used_component_ids: designed.usedComponentIds
     });
+    // An empty spec gives the HTML generator nothing to render; fail loudly instead of
+    // serving a blank page.
+    if (Object.keys(designed.pageSpec).length === 0) {
+        log.warn('page_spec_empty', { route });
+        httpError(502, 'The page could not be designed. Please try again.');
+    }
     const html = await RequestHtml(request, designed.pageSpec, designed.usedComponentIds);
     return {
         prompt: designed.rawDesignerOutput,
