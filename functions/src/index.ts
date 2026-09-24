@@ -502,7 +502,7 @@ export const initializeComponents = onCall({
     region: "europe-southwest1",
     invoker: OPERATOR_INVOKER,
     secrets: aiSecrets,
-    timeoutSeconds: 5400
+    timeoutSeconds: 3600 // the maximum for HTTP-triggered (callable) functions
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
     return withRequestContext(requestId, { fn: "initializeComponents" }, async () => {
