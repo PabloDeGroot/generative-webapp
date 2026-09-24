@@ -765,7 +765,7 @@ Storage:   9199
 UI:        enabled
 ```
 
-Start with: `npm run emulate` (sets `GOOGLE_APPLICATION_CREDENTIALS=credential.json`, imports from `./emulator-data`).
+Start with: `npm run emulate` (runs `scripts/emulate.mjs`; imports from `./emulator-data` when a previous export exists).
 
 ### Firebase Remote Config (Functions)
 

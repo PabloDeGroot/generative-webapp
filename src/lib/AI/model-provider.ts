@@ -1,7 +1,6 @@
 import { createCerebras } from '@ai-sdk/cerebras';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import type { LanguageModel } from 'ai';
-import { CEREBRAS_API_KEY } from '$env/static/private';
 import { env } from '$env/dynamic/private';
 import { logger } from '$lib/logger';
 
@@ -41,7 +40,7 @@ async function cerebrasNormalizingFetch(input: RequestInfo | URL, init?: Request
             // not JSON — pass through unchanged
         }
     }
-    logger.info("fetch_info", { input, init });
+    logger.debug("fetch_info", { input });
     return fetch(input, init);
 }
 
@@ -62,7 +61,7 @@ export function resolveLanguageModel(modelId: string): LanguageModel {
     }
 
     const cerebrasApiKey = requireValue(
-        CEREBRAS_API_KEY,
+        env.CEREBRAS_API_KEY,
         `Missing CEREBRAS_API_KEY for model '${normalizedModelId}'.`
     );
 

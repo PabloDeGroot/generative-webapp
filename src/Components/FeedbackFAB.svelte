@@ -7,9 +7,9 @@
 
 <script lang="ts">
     import { onMount } from "svelte";
-    import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
-    import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions";
-    import { app } from "$lib/firebase.js";
+    import { onAuthStateChanged, type User } from "firebase/auth";
+    import { httpsCallable } from "firebase/functions";
+    import { auth, functions } from "$lib/firebase.js";
 
     interface FeedbackAction {
         kind: string;
@@ -29,17 +29,6 @@
     let submitting = $state(false);
     let resultMessage = $state("");
     let errorMessage = $state("");
-
-    const auth = getAuth(app);
-    const functions = getFunctions(app, "europe-southwest1");
-
-    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-        try {
-            connectFunctionsEmulator(functions, "localhost", 5001);
-        } catch {
-            // already connected
-        }
-    }
 
     const evaluateFeedback = httpsCallable<{ feedback: string }, FeedbackResult>(functions, "evaluateFeedback");
 

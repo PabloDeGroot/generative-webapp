@@ -10,16 +10,14 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import {
-        getAuth,
         GoogleAuthProvider,
         onAuthStateChanged,
         signInWithPopup,
         signInWithRedirect,
-        connectAuthEmulator,
         signOut,
         type User
     } from "firebase/auth";
-    import { app } from "$lib/firebase.js";
+    import { auth } from "$lib/firebase.js";
 
     let { label = "Sign in with Google" } = $props<{ label?: string }>();
 
@@ -27,8 +25,6 @@
     let loading = $state<boolean>(true);
     let errorMessage = $state<string>("");
 
-    const auth = getAuth(app);
-    connectAuthEmulator(auth, "http://localhost:9099");
     const provider = new GoogleAuthProvider();
 
     async function syncSessionCookie(user: User) {

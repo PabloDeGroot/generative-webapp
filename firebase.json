@@ -10,7 +10,8 @@
         "node_modules",
         ".git",
         "firebase-debug.log",
-        "firebase-debug.*.log"
+        "firebase-debug.*.log",
+        "*.local"
       ],
       
       "predeploy": [
@@ -26,7 +27,13 @@
       "**/node_modules/**"
     ],
     "frameworksBackend": {
-      "region": "europe-west1"
+      "region": "europe-west1",
+      "secrets": [
+        "CEREBRAS_API_KEY",
+        "GEMINI_API_KEY",
+        "RUNWARE_API_KEY",
+        "GA_API_SECRET"
+      ]
     }
   },
   "firestore": {

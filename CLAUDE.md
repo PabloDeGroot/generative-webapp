@@ -51,7 +51,11 @@ npm run build:watch  # compile in watch mode
 ```bash
 npm run emulate      # builds functions, starts Firebase emulators with local data
 ```
-Requires `GOOGLE_APPLICATION_CREDENTIALS=credential.json` (set automatically by the script) and Firebase emulator data in `./emulator-data/`.
+Runs `scripts/emulate.mjs`. Requires the Firebase CLI (`npm i -g firebase-tools`), Java, and `gcloud auth application-default login`. Imports `./emulator-data/` when it holds a previous export and exports back to it on exit; with no data it starts empty.
+
+Scripts must run on both Windows and Linux: write tooling as Node scripts (`scripts/*.mjs`) rather than shell scripts, and pass `shell: process.platform === 'win32'` when spawning `npm`, `firebase` or `gcloud`.
+
+`npm run dev` always talks to the emulators, never to production: the client SDK clients (`db`, `auth`, `functions` exported from `src/lib/firebase.ts`) connect to them when `dev` is true, `src/lib/firebase_admin.ts` sets the `*_EMULATOR_HOST` variables for firebase-admin, the MCP URL defaults to the emulated `mcp` function, and component script URLs point at the Storage emulator. Use the shared clients from `$lib/firebase` rather than calling `getAuth`/`getFunctions` in components. Emulator ports come from `firebase.json`.
 
 ### Deploy functions only
 ```bash
@@ -60,10 +64,18 @@ cd functions && npm run deploy
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and `functions/.env.example` to `functions/.env`. Key variables:
+Config and secrets are split:
+
+- **Non-secret config** lives in the committed `.env` (SvelteKit) and `functions/.env` (functions). Never put API keys there.
+- **API keys** live in Google Secret Manager, one secret per key, named like the env var. Deployed functions bind them with `defineSecret` (`functions/src/secrets.ts`, attached per function via `secrets:`); the deployed SvelteKit server binds them via `hosting.frameworksBackend.secrets` in `firebase.json`. SvelteKit code must read secrets from `$env/dynamic/private` (not `static`), since they only exist at runtime.
+- **Locally**, `npm run secrets:pull` writes the keys into gitignored `.secret.local` (loaded by `vite.config.ts` for `vite dev` only) and `functions/.secret.local` (read by the Functions emulator). `npm run secrets:set -- NAME` adds or rotates a key; `npm run secrets:setup` prompts for every key in turn (both in `scripts/env-sync.mjs`).
+- Adding a secret means updating `secrets.ts` or `firebase.json`, and the key lists in `scripts/env-sync.mjs`.
+- Don't use root `.env.*` files for secrets: the frameworks deploy uploads every root `.env.*` file with the SSR function.
+
+Key variables:
 
 - Firebase config: `PUBLIC_FIREBASE_*` (SvelteKit public env)
-- `RUNWARE_API_KEY` — image generation
+- Secrets: `CEREBRAS_API_KEY`, `GEMINI_API_KEY`, `RUNWARE_API_KEY` (image generation), `GA_API_SECRET`, `OPENAI_API_KEY` (functions: model-search embeddings)
 - Per-prompt model selection: `PAGE_DESIGNER_MODEL`, `HTML_GENERATOR_MODEL`, `ACTION_RUNNER_MODEL`, `IMAGE_DESCRIPTION_MODEL`, `IMAGE_GENERATION_MODEL` (SvelteKit side)
 - `COMPONENT_DESIGNER_MODEL`, `COMPONENT_CODEGEN_MODEL`, `COMPONENT_EVALUATOR_MODEL`, `FEEDBACK_EVALUATOR_MODEL`, `COMPONENT_INITIALIZER_MODEL`, `COMPONENT_CURATOR_MODEL` (functions side)
 - `MCP_ENDPOINT` — optional override for the MCP URL (defaults to the Firebase Function URL derived from `PUBLIC_FIREBASE_PROJECT_ID`)

@@ -8,10 +8,9 @@
 />
 
 <script lang="ts">
-    import { getFunctions, httpsCallable } from "firebase/functions";
-    import { app } from "$lib/firebase.js";
+    import { httpsCallable } from "firebase/functions";
+    import { functions } from "$lib/firebase.js";
     import { marked } from "marked";
-    const functions = getFunctions(app, "europe-southwest1");
     const generateContent = httpsCallable(functions, "generateContent");
     let { description } = $props();
     let text = $state<string>("");

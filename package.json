@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "emulate": "npm --prefix ./functions run build && set \"GOOGLE_APPLICATION_CREDENTIALS=credential.json\" && firebase emulators:start --import=./emulator-data --export-on-exit",
+    "emulate": "node scripts/emulate.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "secrets:pull": "node scripts/env-sync.mjs pull",
+    "secrets:push": "node scripts/env-sync.mjs push",
+    "secrets:set": "node scripts/env-sync.mjs set",
+    "secrets:setup": "node scripts/env-sync.mjs setup"
   },
   "overrides": {
     "typescript": "$typescript"

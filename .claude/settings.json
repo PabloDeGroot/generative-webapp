@@ -1,3 +1,26 @@
 {
-  "enabledPlugins": {}
+  "enabledPlugins": {},
+  "permissions": {
+    "deny": [
+  "Read(**/.secret.local)",
+"Read(**/.env.local)",
+"Read(**/.env.*.local)",
+"Read(**/credential*.json)",
+"Read(**/serviceAccount*.json)"
+
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-secret-files.mjs\""
+          }
+        ]
+      }
+    ]
+  }
 }

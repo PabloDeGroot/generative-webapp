@@ -28,6 +28,7 @@ import {
 import { SaveUserPreference, GetUserPreferences, formatPreferencesForPrompt } from "./user-manager";
 import { activeToolkit } from "./toolkits/active";
 import { loadPrompt, requireEnv } from "./prompt-loader";
+import { aiSecrets, openaiApiKey } from "./secrets";
 
 const feedbackEvaluatorPrompt = loadPrompt("feedback_evaluator");
 const componentInitializerPrompt = loadPrompt("component_initializer");
@@ -52,13 +53,15 @@ async function GetConfig(headers: Request): Promise<ServerConfig> {
 
 export const mcp = onRequest({
     region: "europe-southwest1",
+    secrets: aiSecrets,
     timeoutSeconds: 3600
 }, async (request, response) => {
     await mcpHandler(request, response);
 });
 
 export const generateContent = onCall({
-    region: "europe-southwest1"
+    region: "europe-southwest1",
+    secrets: aiSecrets
 }, async (request, response) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
     return withRequestContext(requestId, { fn: "generateContent" }, async () => {
@@ -108,7 +111,8 @@ export const generateContent = onCall({
 const MAX_SCENE_TOOL_STEPS = 16;
 
 export const createScene = onCall({
-    region: "europe-southwest1"
+    region: "europe-southwest1",
+    secrets: [...aiSecrets, openaiApiKey]
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
     return withRequestContext(requestId, { fn: "createScene" }, async () => {
@@ -206,7 +210,8 @@ interface FeedbackResult {
 }
 
 export const evaluateFeedback = onCall({
-    region: "europe-southwest1"
+    region: "europe-southwest1",
+    secrets: aiSecrets
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
     return withRequestContext(requestId, { fn: "evaluateFeedback" }, async () => {
@@ -474,6 +479,7 @@ function readOperatorPrompt(raw: unknown, fieldName: string): string {
 
 export const initializeComponents = onCall({
     region: "europe-southwest1",
+    secrets: aiSecrets,
     timeoutSeconds: 5400
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
@@ -586,7 +592,8 @@ export const initializeComponents = onCall({
 });
 
 export const updateComponents = onCall({
-    region: "europe-southwest1"
+    region: "europe-southwest1",
+    secrets: aiSecrets
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
     return withRequestContext(requestId, { fn: "updateComponents" }, async () => {

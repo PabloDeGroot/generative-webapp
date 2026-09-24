@@ -34,13 +34,11 @@ metrics/
 Generative Web App.md
 .claude/worktrees/nifty-driscoll-8c45e2
 
-# Secrets and local credentials
-.env
-.env.*
-!.env.example
-functions/.env
-functions/.env.*
-!functions/.env.example
+# Secrets and local credentials. The .env files hold only non-secret config and are
+# committed; API keys live in Secret Manager and locally in .secret.local.
+.secret.local
+.env.local
+.env.*.local
 credential.json
 *credential*.json
 serviceAccount*.json

@@ -1,6 +1,6 @@
-import { db, app } from '$lib/firebase';
+import { db, auth } from '$lib/firebase';
 import { doc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 
 function gsPathToPublicUrl(gsPath: string): string | null {
     const match = gsPath.match(/^gs:\/\/([^/]+)\/(.+)$/);
@@ -27,7 +27,6 @@ function gsPathToPublicUrl(gsPath: string): string | null {
 export function watchComponents(componentIds: string[]): () => void {
     if (!componentIds.length) return () => {};
 
-    const auth = getAuth(app);
     const baseline = new Map<string, number>();
     const unsubscribers: (() => void)[] = [];
     const reloading = new Set<string>();

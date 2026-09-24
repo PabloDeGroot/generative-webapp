@@ -1,5 +1,6 @@
 import { getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { dev } from '$app/environment';
 import { logger } from '$lib/logger';
 import '$lib/firebase_admin';
 
@@ -127,6 +128,12 @@ async function signGsPath(gsPath: string): Promise<string | null> {
 
     const bucketName = match[1];
     const objectPath = match[2];
+
+    // The Storage emulator serves objects directly; signing needs service-account credentials.
+    if (dev) {
+        return `http://127.0.0.1:9199/v0/b/${bucketName}/o/${encodeURIComponent(objectPath)}?alt=media`;
+    }
+
     const file = getStorage().bucket(bucketName).file(objectPath);
 
     try {

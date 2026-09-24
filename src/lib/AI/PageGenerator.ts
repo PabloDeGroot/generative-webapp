@@ -3,7 +3,7 @@ import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import { Runware } from '@runware/sdk-js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { RUNWARE_API_KEY } from '$env/static/private';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { PUBLIC_FIREBASE_PROJECT_ID } from '$env/static/public';
 import { logger } from '$lib/logger';
@@ -34,7 +34,12 @@ import { cerebras } from '@ai-sdk/cerebras';
 
 const log = logger.child('PageGenerator');
 
-const runware = new Runware({ apiKey: RUNWARE_API_KEY });
+// Created on first use: the API key is a runtime secret, not available at build time.
+let runwareClient: InstanceType<typeof Runware> | undefined;
+function getRunware(): InstanceType<typeof Runware> {
+    runwareClient ??= new Runware({ apiKey: env.RUNWARE_API_KEY ?? '' });
+    return runwareClient;
+}
 
 const MCP_REGION = 'europe-southwest1';
 const MAX_TOOL_LOOP_ITERATIONS = 10;
@@ -68,6 +73,10 @@ function resolveMcpUrl(request: Request): URL | null {
         } catch {
             log.warn('mcp.endpoint_invalid', { configuredUrl });
         }
+    }
+
+    if (PUBLIC_FIREBASE_PROJECT_ID && dev) {
+        return new URL(`http://127.0.0.1:5001/${PUBLIC_FIREBASE_PROJECT_ID}/${MCP_REGION}/mcp`);
     }
 
     if (PUBLIC_FIREBASE_PROJECT_ID) {
@@ -517,6 +526,7 @@ export async function GenerateImageFromRoute(_request: Request, route: string): 
     const imgLog = log.child('image', { route, model: imageGenerationModel });
     const stop = imgLog.time('generate');
 
+    const runware = getRunware();
     await runware.ensureConnection();
     const description = await GetImageDescriptionFromRoute(route);
 

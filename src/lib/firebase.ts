@@ -1,7 +1,9 @@
 import { initializeApp } from 'firebase/app';
 import { getAnalytics, type Analytics, isSupported } from 'firebase/analytics';
-import { getFirestore, collection, addDoc, serverTimestamp, type Timestamp } from 'firebase/firestore';
-import { browser } from '$app/environment';
+import { getFirestore, connectFirestoreEmulator, collection, addDoc, serverTimestamp, type Timestamp } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+import { browser, dev } from '$app/environment';
 import {
   PUBLIC_FIREBASE_API_KEY,
   PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -41,8 +43,21 @@ export { cpo, check };
 
 // Initialize Cloudflare Turnstile App Check
 
+export const FUNCTIONS_REGION = 'europe-southwest1';
+
 export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const functions = getFunctions(app, FUNCTIONS_REGION);
 export { collection, addDoc, serverTimestamp, type Timestamp };
+
+// In dev, everything talks to the local Firebase emulators (ports from firebase.json),
+// never to the production project. Server-side firebase-admin is set up the same way
+// in firebase_admin.ts.
+if (dev) {
+  connectFirestoreEmulator(db, '127.0.0.1', 5003);
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFunctionsEmulator(functions, '127.0.0.1', 5001);
+}
 
 // Initialize Analytics and get a reference to the service
 export let analytics: Analytics | null = null;
