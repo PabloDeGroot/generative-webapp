@@ -7,6 +7,7 @@ declare global {
             requestId: string;
             userId?: string;
             idToken?: string;
+            signInProvider?: string;
         }
         // interface PageData {}
         // interface Platform {}
@@ -21,11 +22,14 @@ import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import './lib/firebase_admin';
+import { authGateEnabled, GATE_SIGN_IN_PROVIDER } from '$lib/server/auth-gate';
 
 const log = logger.child('hooks');
 
 const AUTH_COOKIE_NAME = 'authToken';
 const SESSION_AUTH_PATH = '/__session-auth';
+const IMAGE_PATH = /\.(png|jpg|jpeg|gif|webp|avif|svg)$/i;
+const FAVICON_PATH = /favicon\.(png|ico)$/i;
 
 async function handleImageRequest(event: RequestEvent, pathname: string): Promise<Response> {
     const imgLog = log.child('image', { route: pathname });
@@ -84,12 +88,12 @@ async function handleImageRequest(event: RequestEvent, pathname: string): Promis
     });
 }
 
-async function resolveAuth(event: RequestEvent): Promise<{ userId?: string; idToken?: string }> {
+async function resolveAuth(event: RequestEvent): Promise<{ userId?: string; idToken?: string; signInProvider?: string }> {
     const idToken = event.cookies.get(AUTH_COOKIE_NAME);
     if (!idToken) return {};
     try {
         const decoded = await getAuth().verifyIdToken(idToken);
-        return { userId: decoded.uid, idToken };
+        return { userId: decoded.uid, idToken, signInProvider: decoded.firebase?.sign_in_provider };
     } catch (error) {
         log.warn('auth_cookie_invalid', { error });
         event.cookies.delete(AUTH_COOKIE_NAME, { path: '/' });
@@ -113,7 +117,8 @@ export const handle: Handle = async ({ event, resolve }) => {
                 validationCookie: validationCookie || undefined,
                 requestId,
                 userId: auth.userId,
-                idToken: auth.idToken
+                idToken: auth.idToken,
+                signInProvider: auth.signInProvider
             };
 
             const userAgent = event.request.headers.get('user-agent') || '';
@@ -137,11 +142,28 @@ export const handle: Handle = async ({ event, resolve }) => {
                 });
             }
 
+            // Auth gate: visitors without a Google sign-in may only load pages (the layout then
+            // shows the sign-in screen and nothing is generated) and set their session cookie.
+            if (authGateEnabled() && auth.signInProvider !== GATE_SIGN_IN_PROVIDER) {
+                const pathname = event.url.pathname;
+                const method = event.request.method;
+                const isPageLoad = (method === 'GET' || method === 'HEAD')
+                    && event.route.id === '/[...slug]'
+                    && !IMAGE_PATH.test(pathname);
+                if (pathname !== SESSION_AUTH_PATH && !isPageLoad && !FAVICON_PATH.test(pathname)) {
+                    log.info('auth_gate_blocked', { method, user_agent: userAgent });
+                    return new Response('Sign in is required.', {
+                        status: 401,
+                        headers: { 'Content-Type': 'text/plain', 'X-Robots-Tag': 'noindex, nofollow' }
+                    });
+                }
+            }
+
             const stop = log.time('request', { user_agent: userAgent, authenticated: Boolean(auth.userId) });
             try {
                 const pathname = event.url.pathname;
-                if (/\.(png|jpg|jpeg|gif|webp|avif|svg)$/i.test(pathname)) {
-                    if (/favicon\.(png|ico)$/i.test(pathname)) {
+                if (IMAGE_PATH.test(pathname)) {
+                    if (FAVICON_PATH.test(pathname)) {
                         return new Response(null, {
                             status: 204,
                             headers: { 'Cache-Control': 'public, max-age=3600, immutable', 'X-Robots-Tag': 'noindex, nofollow' }

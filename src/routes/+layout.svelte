@@ -12,6 +12,18 @@
   import ThreeCanvas from "../Components/ThreeCanvas.svelte";
   import FeedbackFAB from "../Components/FeedbackFAB.svelte";
   let token = data.token;
+
+  // Behind the auth gate the server decides what to render from the session cookie, so
+  // reload once GoogleLogin has set (or cleared) it.
+  onMount(() => {
+    if (!data.authGate) return;
+    const onSessionChange = (event: Event) => {
+      const signedIn = (event as CustomEvent<{ signedIn: boolean }>).detail?.signedIn;
+      if (signedIn === data.authRequired) location.reload();
+    };
+    window.addEventListener("session-auth-synced", onSessionChange);
+    return () => window.removeEventListener("session-auth-synced", onSessionChange);
+  });
   import "@twind/with-web-components";
 
   /*
@@ -33,7 +45,15 @@
 </script>
 
 <div class="app">
-  {#if token}
+  {#if data.authRequired}
+    <main>
+      <div class="p-4 w-full max-w-md mx-auto mt-24 text-center">
+        <h1 class="text-2xl font-bold mb-4">Sign in to continue</h1>
+        <p class="text-gray-700 mb-6">This site is only available to signed-in users.</p>
+        <google-login></google-login>
+      </div>
+    </main>
+  {:else if token}
     {@render children()}
     <google-login></google-login>
     <feedback-fab></feedback-fab>

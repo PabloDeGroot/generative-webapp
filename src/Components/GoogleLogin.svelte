@@ -27,14 +27,20 @@
 
     const provider = new GoogleAuthProvider();
 
+    // Tells the page the server-side session changed (the layout reloads behind the auth gate).
+    function announceSession(signedIn: boolean) {
+        window.dispatchEvent(new CustomEvent("session-auth-synced", { detail: { signedIn } }));
+    }
+
     async function syncSessionCookie(user: User) {
         try {
             const idToken = await user.getIdToken();
-            await fetch("/__session-auth", {
+            const res = await fetch("/__session-auth", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ idToken })
             });
+            if (res.ok) announceSession(true);
         } catch (error) {
             console.error("Failed to sync auth cookie", error);
         }
@@ -42,7 +48,8 @@
 
     async function clearSessionCookie() {
         try {
-            await fetch("/__session-auth", { method: "DELETE" });
+            const res = await fetch("/__session-auth", { method: "DELETE" });
+            if (res.ok) announceSession(false);
         } catch (error) {
             console.error("Failed to clear auth cookie", error);
         }

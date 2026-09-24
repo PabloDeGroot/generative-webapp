@@ -44,10 +44,16 @@ const log = logger.child("index");
 const OPERATOR_INVOKER = "private";
 const MCP_INVOKER = process.env.MCP_INVOKER_SERVICE_ACCOUNT?.trim() || "private";
 
+// AUTH_GATE (functions/.env): when on, only Google sign-ins count, matching the site's gate.
+const AUTH_GATE = /^(1|true|yes|on)$/i.test(process.env.AUTH_GATE?.trim() ?? "");
+
 function requireSignedIn(request: CallableRequest): string {
-    if (request.auth?.uid) return request.auth.uid;
-    if (process.env.FUNCTIONS_EMULATOR === "true") return "emulator-user";
-    throw new HttpsError("unauthenticated", "Sign in is required.");
+    const auth = request.auth;
+    if (auth?.uid && (!AUTH_GATE || auth.token.firebase?.sign_in_provider === "google.com")) {
+        return auth.uid;
+    }
+    if (process.env.FUNCTIONS_EMULATOR === "true" && !auth) return "emulator-user";
+    throw new HttpsError("unauthenticated", AUTH_GATE ? "Sign in with Google is required." : "Sign in is required.");
 }
 
 async function GetConfig(headers: Request): Promise<ServerConfig> {
@@ -234,13 +240,12 @@ export const evaluateFeedback = onCall({
         const fbLog = log.child("evaluateFeedback");
         const stop = fbLog.time("call");
 
-        const userId = process.env.FUNCTIONS_EMULATOR === "true" && !request.auth?.uid
-            ? "emulator-user"
-            : request.auth?.uid;
-
-        if (!userId) {
+        let userId: string;
+        try {
+            userId = requireSignedIn(request);
+        } catch (error) {
             stop({ ok: false, reason: "unauthenticated" });
-            throw new HttpsError("unauthenticated", "Sign in is required to submit feedback.");
+            throw error;
         }
 
         const rawFeedback = typeof request.data?.feedback === "string" ? request.data.feedback : "";
