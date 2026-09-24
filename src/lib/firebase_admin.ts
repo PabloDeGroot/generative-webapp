@@ -10,8 +10,10 @@ if (dev) {
     process.env.FIREBASE_STORAGE_EMULATOR_HOST ??= '127.0.0.1:9199';
 }
 
-// Reuse the app when this module is evaluated again (Vite re-runs server modules on hot reload).
-const app = getApps()[0] ?? initializeApp({
+// Reuse the default app when this module is evaluated again (Vite re-runs server modules on
+// hot reload). Only the default app counts: in production the firebase-frameworks runtime
+// initializes its own named app first, and getAuth()/getFirestore() need the default one.
+const app = getApps().find((a) => a.name === '[DEFAULT]') ?? initializeApp({
     credential: applicationDefault(),
     projectId: PUBLIC_FIREBASE_PROJECT_ID
 });
