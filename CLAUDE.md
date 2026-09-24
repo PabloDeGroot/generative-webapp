@@ -18,6 +18,11 @@ The resulting HTML is injected into the page via `{@html}` in `+page.svelte`. Co
 - `evaluateFeedback` — routes user free-form feedback into per-user component overrides or stored preferences (via `SaveUserPreference` / `UpdateComponent`).
 - `initializeComponents` / `updateComponents` / `resetComponents` — operator-only functions for seeding the shared component library.
 
+Access control (IAM invoker settings are applied on deploy; the emulator ignores them):
+- Operator functions are `invoker: "private"`: call them with `npm run call -- NAME '<json data>'` (`scripts/call-function.mjs`), which sends your gcloud identity token in `X-Serverless-Authorization`; add `--emulator` to call the local emulator.
+- `mcp` only accepts the SvelteKit server's service account (`MCP_INVOKER_SERVICE_ACCOUNT` in `functions/.env`). In production `PageGenerator.ts` sends a Google ID token in `X-Serverless-Authorization`; `Authorization` carries the visitor's Firebase ID token.
+- `generateContent`, `createScene` and `evaluateFeedback` require a signed-in Firebase user (`requireSignedIn`; the emulator falls back to `emulator-user`).
+
 **Component system** — reusable components are AI-generated JavaScript web components (native `HTMLElement` subclasses, always wrapped with Twind for Tailwind CSS). They are stored in Firestore and Firebase Storage. Two scopes exist:
 - Default scope (`components/` collection) — shared library, written only by `CreateComponent` and `updateComponents`.
 - User scope (`users/{uid}/components/` subcollection) — per-user overrides written by `UpdateComponent` when called with a `userId`.

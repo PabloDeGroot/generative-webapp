@@ -13,7 +13,8 @@
     "secrets:pull": "node scripts/env-sync.mjs pull",
     "secrets:push": "node scripts/env-sync.mjs push",
     "secrets:set": "node scripts/env-sync.mjs set",
-    "secrets:setup": "node scripts/env-sync.mjs setup"
+    "secrets:setup": "node scripts/env-sync.mjs setup",
+    "call": "node scripts/call-function.mjs"
   },
   "overrides": {
     "typescript": "$typescript"
@@ -43,6 +44,7 @@
     "firebase": "^11.9.1",
     "firebase-admin": "^13.4.0",
     "firebase-functions": "^6.3.2",
+    "google-auth-library": "^9.15.1",
     "marked": "^15.0.12",
     "postcss": "^8.5.6",
     "svelte-turnstile": "^0.11.0",

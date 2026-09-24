@@ -6,7 +6,7 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-import { HttpsError, onCall, onRequest, Request } from "firebase-functions/https";
+import { HttpsError, onCall, onRequest, Request, type CallableRequest } from "firebase-functions/https";
 import { generateText, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
 import { getRemoteConfig, type ServerConfig } from "firebase-admin/remote-config";
@@ -37,6 +37,19 @@ const componentCuratorPrompt = loadPrompt("component_curator");
 const app = initializeApp();
 const log = logger.child("index");
 
+// Access control. Deploy applies the IAM invoker settings; the emulator ignores them.
+// - "private": only project principals with run.invoker (owners) can call, using a Google
+//   identity token. Operator functions are called with scripts/call-function.mjs.
+// - mcp: only the SvelteKit server may call it; it runs as this service account (functions/.env).
+const OPERATOR_INVOKER = "private";
+const MCP_INVOKER = process.env.MCP_INVOKER_SERVICE_ACCOUNT?.trim() || "private";
+
+function requireSignedIn(request: CallableRequest): string {
+    if (request.auth?.uid) return request.auth.uid;
+    if (process.env.FUNCTIONS_EMULATOR === "true") return "emulator-user";
+    throw new HttpsError("unauthenticated", "Sign in is required.");
+}
+
 async function GetConfig(headers: Request): Promise<ServerConfig> {
     const remoteConfig = getRemoteConfig(app);
     const stop = log.child("config").time("fetch_remote_config");
@@ -53,6 +66,7 @@ async function GetConfig(headers: Request): Promise<ServerConfig> {
 
 export const mcp = onRequest({
     region: "europe-southwest1",
+    invoker: MCP_INVOKER,
     secrets: aiSecrets,
     timeoutSeconds: 3600
 }, async (request, response) => {
@@ -66,6 +80,7 @@ export const generateContent = onCall({
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
     return withRequestContext(requestId, { fn: "generateContent" }, async () => {
         const stop = log.child("generateContent").time("call");
+        requireSignedIn(request);
         const { description } = request.data;
         if (!description) {
             stop({ ok: false, reason: "missing_description" });
@@ -118,6 +133,7 @@ export const createScene = onCall({
     return withRequestContext(requestId, { fn: "createScene" }, async () => {
         const sceneLog = log.child("createScene");
         const stop = sceneLog.time("call");
+        requireSignedIn(request);
 
         const { description } = request.data as { description: string };
         if (!description) {
@@ -479,6 +495,7 @@ function readOperatorPrompt(raw: unknown, fieldName: string): string {
 
 export const initializeComponents = onCall({
     region: "europe-southwest1",
+    invoker: OPERATOR_INVOKER,
     secrets: aiSecrets,
     timeoutSeconds: 5400
 }, async (request) => {
@@ -593,6 +610,7 @@ export const initializeComponents = onCall({
 
 export const updateComponents = onCall({
     region: "europe-southwest1",
+    invoker: OPERATOR_INVOKER,
     secrets: aiSecrets
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
@@ -715,7 +733,8 @@ export const updateComponents = onCall({
 const RESET_CONFIRMATION_TOKEN = "RESET";
 
 export const resetComponents = onCall({
-    region: "europe-southwest1"
+    region: "europe-southwest1",
+    invoker: OPERATOR_INVOKER
 }, async (request) => {
     const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
     return withRequestContext(requestId, { fn: "resetComponents" }, async () => {

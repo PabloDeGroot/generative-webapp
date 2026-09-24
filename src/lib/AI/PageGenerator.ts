@@ -2,6 +2,7 @@ import { trackAIInteraction, trackError, trackWebsiteGeneration } from '$lib/ana
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import { Runware } from '@runware/sdk-js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { GoogleAuth } from 'google-auth-library';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { error as httpError } from '@sveltejs/kit';
 import { dev } from '$app/environment';
@@ -106,10 +107,12 @@ async function withMcpClient<T>(
     const authorizationHeader = idToken
         ? `Bearer ${idToken}`
         : request.headers.get('authorization');
+    const headers: Record<string, string> = {};
+    if (authorizationHeader) headers.Authorization = authorizationHeader;
+    const invokerToken = await fetchMcpInvokerToken(mcpUrl);
+    if (invokerToken) headers['X-Serverless-Authorization'] = `Bearer ${invokerToken}`;
     const transport = new StreamableHTTPClientTransport(mcpUrl, {
-        requestInit: authorizationHeader
-            ? { headers: { Authorization: authorizationHeader } }
-            : undefined
+        requestInit: Object.keys(headers).length ? { headers } : undefined
     });
     const mcp = new Client({ name: 'ai-webpage-generator', version: '1.0.0' });
 
@@ -129,6 +132,23 @@ async function withMcpClient<T>(
         } catch {
             // Ignore close errors from short-lived MCP requests.
         }
+    }
+}
+
+// The deployed mcp function only accepts this server's service account (IAM invoker), proven
+// with a Google ID token. It travels in X-Serverless-Authorization, which Cloud Run checks and
+// strips, so Authorization stays free for the visitor's Firebase ID token.
+const googleAuth = new GoogleAuth();
+
+async function fetchMcpInvokerToken(mcpUrl: URL): Promise<string | null> {
+    if (dev || mcpUrl.protocol !== 'https:') return null;
+    const audience = `${mcpUrl.origin}${mcpUrl.pathname}`;
+    try {
+        const client = await googleAuth.getIdTokenClient(audience);
+        return await client.idTokenProvider.fetchIdToken(audience);
+    } catch (error) {
+        log.error('mcp.invoker_token_failed', { error });
+        return null;
     }
 }
 
