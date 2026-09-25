@@ -1,13 +1,10 @@
 import { getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
-import { dev } from '$app/environment';
-import { devStorageUrl } from '$lib/dev-storage';
+import { componentSourceUrl } from '$lib/component-url';
 import { logger } from '$lib/logger';
 import { sharedLibraryPath, userLibraryPath } from '$lib/toolkit';
 import '$lib/firebase_admin';
 
 const log = logger.child('component-loader');
-const SIGNED_URL_TTL_MS = 60 * 60 * 1000;
 
 // Kept in sync with BUILT_IN_COMPONENTS in functions/src/component-manager.ts.
 // Built-ins ship as Svelte-compiled custom elements in the page bundle; we
@@ -94,7 +91,7 @@ export async function resolveComponentScripts(
             return undefined;
         }
 
-        const src = await signGsPath(gsPath);
+        const src = componentScriptUrl(gsPath);
         if (!src) {
             return undefined;
         }
@@ -116,40 +113,10 @@ export async function resolveComponentScripts(
     return resolved;
 }
 
-async function signGsPath(gsPath: string): Promise<string | null> {
+// Scripts are served from the site itself (see $lib/component-url.ts), in dev and production.
+function componentScriptUrl(gsPath: string): string | null {
     if (gsPath.startsWith('http://') || gsPath.startsWith('https://')) {
         return gsPath;
     }
-
-    const match = gsPath.match(/^gs:\/\/([^/]+)\/(.+)$/);
-    if (!match) {
-        return null;
-    }
-
-    const bucketName = match[1];
-    const objectPath = match[2];
-
-    // Signing needs service-account credentials, and the Storage emulator enforces the
-    // deny-all storage.rules, so dev serves scripts through a same-origin proxy instead.
-    if (dev) {
-        return devStorageUrl(bucketName, objectPath);
-    }
-
-    const file = getStorage().bucket(bucketName).file(objectPath);
-
-    try {
-        const [signedUrl] = await file.getSignedUrl({
-            version: 'v4',
-            action: 'read',
-            expires: Date.now() + SIGNED_URL_TTL_MS
-        });
-        return signedUrl;
-    } catch (error) {
-        log.warn('signed_url_failed_fallback_public', { gsPath, error });
-        const encodedObjectPath = objectPath
-            .split('/')
-            .map((segment) => encodeURIComponent(segment))
-            .join('/');
-        return `https://storage.googleapis.com/${bucketName}/${encodedObjectPath}`;
-    }
+    return componentSourceUrl(gsPath);
 }

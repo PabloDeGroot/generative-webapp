@@ -10,7 +10,7 @@ This is an AI-powered webpage generator built on two separate runtimes that comm
 1. **Page Designer** — an LLM agent that reads the URL route, queries the MCP server for available components, and emits a JSON `PageSpec` describing page sections.
 2. **HTML Generator** — a single-shot LLM call that turns the `PageSpec` into raw HTML.
 
-The resulting HTML is injected into the page via `{@html}` in `+page.svelte`. Component `<script>` tags are loaded from signed Firebase Storage URLs via `resolveComponentScripts()` in `component-loader.ts`.
+The resulting HTML is injected into the page via `{@html}` in `+page.svelte`. Component `<script>` tags point at the same-origin `/__components/<storage path>` route (`src/routes/__components/[...path]/+server.ts`, URLs from `$lib/component-url.ts`), which reads them from Firebase Storage with firebase-admin, in dev and production. Don't link to Storage directly: `storage.rules` deny client reads, the server's service account can't sign URLs, and cross-origin module scripts would need bucket CORS. The route only serves component paths from the project bucket, and a user's overrides only to that user.
 
 **Firebase Functions (`functions/src/`)** — runs the backend agents and exposes an MCP server. Key exports from `index.ts`:
 - `mcp` — stateless MCP endpoint that the page designer connects to for component CRUD tools.
@@ -66,7 +66,7 @@ Runs `scripts/emulate.mjs`. Requires the Firebase CLI (`npm i -g firebase-tools`
 
 Scripts must run on both Windows and Linux: write tooling as Node scripts (`scripts/*.mjs`) rather than shell scripts, and pass `shell: process.platform === 'win32'` when spawning `npm`, `firebase` or `gcloud`.
 
-`npm run dev` always talks to the emulators, never to production: the client SDK clients (`db`, `auth`, `functions` exported from `src/lib/firebase.ts`) connect to them when `dev` is true, `src/lib/firebase_admin.ts` sets the `*_EMULATOR_HOST` variables for firebase-admin, the MCP URL defaults to the emulated `mcp` function, and component scripts are served by the dev-only `/__dev-storage` proxy route (`src/lib/dev-storage.ts`), which reads them from the Storage emulator via firebase-admin because `storage.rules` deny all client reads (production uses signed URLs instead). Use the shared clients from `$lib/firebase` rather than calling `getAuth`/`getFunctions` in components. Emulator ports come from `firebase.json`.
+`npm run dev` always talks to the emulators, never to production: the client SDK clients (`db`, `auth`, `functions` exported from `src/lib/firebase.ts`) connect to them when `dev` is true, `src/lib/firebase_admin.ts` sets the `*_EMULATOR_HOST` variables for firebase-admin, the MCP URL defaults to the emulated `mcp` function, and `/__components` reads component scripts from the Storage emulator. Use the shared clients from `$lib/firebase` rather than calling `getAuth`/`getFunctions` in components. Emulator ports come from `firebase.json`.
 
 ### Deploy functions only
 ```bash

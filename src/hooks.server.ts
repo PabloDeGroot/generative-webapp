@@ -193,7 +193,8 @@ export const handle: Handle = async ({ event, resolve }) => {
                     // app.html: <html data-toolkit="%toolkit%"> tells browser code which library to use.
                     transformPageChunk: ({ html }) => html.replace('%toolkit%', event.locals.toolkitId)
                 })));
-                response.headers.set('Cache-Control', 'private, no-cache');
+                // Pages must not be cached; routes that set their own policy (component sources) keep it.
+                if (!response.headers.has('Cache-Control')) response.headers.set('Cache-Control', 'private, no-cache');
                 response.headers.set('vary', 'Cookie, Accept');
                 response.headers.set('X-Robots-Tag', 'noindex, nofollow');
                 stop({ status: response.status, kind: 'page' });
