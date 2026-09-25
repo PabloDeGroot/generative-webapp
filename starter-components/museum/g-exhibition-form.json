@@ -1,0 +1,53 @@
+{
+  "prompt": "New-exhibition form for the signed-in visitor: title, subtitle and introduction, optionally opening with one artwork from the URL; on save it opens the new exhibition.",
+  "id": "g-exhibition-form",
+  "shortDesc": "New-exhibition form (title, subtitle, introduction); on save it creates the exhibition and opens /exhibitions/<new id>. It has NO heading of its own: put it inside a g-page-section level=\"1\" (e.g. heading=\"Start an exhibition\"). On /exhibitions/new use it with no attributes; on /exhibitions/new/<artwork id> pass that id decoded, e.g. artwork-id=\"aic-16568\" or artwork-id=\"met-436535\": it previews that real work as the opening piece and adds it right after creating. \"new\" is not an exhibition id: never put g-exhibition-view on /exhibitions/new or /exhibitions/new/<artwork id>, use this form there. Signed-out visitors are asked to sign in (up front when the page's google-login shows its sign-in button, otherwise when they save), so surrounding texts should suit both. Editing an existing exhibition happens inside g-exhibition-view, not here.",
+  "role": "leaf",
+  "props": [
+    {
+      "name": "artwork-id",
+      "type": "string",
+      "required": false,
+      "description": "Optional first work, copied from the /exhibitions/new/<artwork id> URL: aic-<n> or met-<n>, e.g. aic-16568. Shows an 'Opening with' preview (image, italic title, artist) and tries to add the work after the exhibition is created. Invalid ids are ignored."
+    }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "max-w-[680px] bg-[#fffdf9] border border-[#e0d9cd] rounded-sm p-7 grid gap-6",
+    "palette": [
+      "#fffdf9",
+      "#f6f3ee",
+      "#ebe6dc",
+      "#e0d9cd",
+      "#1d1b18",
+      "#6b645a",
+      "#7d2a26",
+      "#5f1f1c",
+      "#a8844a",
+      "#a3321f"
+    ],
+    "notes": "VITRINE kit. A form on --paper with a 1px --rule border, max 680px, 28px padding (20px 16px on phones). Oxblood 'New exhibition' kicker followed by a fading gilt hairline. Visible small-caps .label labels. Title: italic Newsreader 28px with only a bottom rule (oxblood on focus, --error when invalid), placeholder 'Untitled exhibition'. Subtitle: 44px sans input on --wall. Introduction: Newsreader 17px/1.65 textarea, 6 rows, with a tabular 'n / 4,000' counter that turns gilt-ink near the limit. With artwork-id, an 'Opening with' row on --wall: a 96px 4:5 .mat with the real /__art image (uncropped, object-fit contain, lazy, fades in; on error a plain mat whose 'Image unavailable' lives only in its aria-label, since text that small is illegible; skeleton while loading), then the italic title, artist and 'date · museum'. Actions: oxblood .btn 'Create exhibition' ('Creating…', 'Adding the first work…', 'Opening…' while the fieldset is disabled) and a 'Cancel' link to /exhibitions. Empty title: aria-invalid plus inline message, focus returns to it. Server errors in a role=alert box with an error-red left rule; typed values are kept. Signed out (known up front only when the page's google-login shows its sign-in button, otherwise from a 401 on save): the fields are replaced by 'Sign in with Google to curate exhibitions.' with a Sign in button that presses google-login's, and a Browse highlights link. If there is no sign-in button to press (session cookie expired while the client is still signed in), the panel says the sign-in needs refreshing and offers 'Try again', which saves the typed text for this tab and reloads. If the exhibition is created but the opening work can't be added, the form is replaced by an 'Exhibition created' panel saying so, with 'Open exhibition' and 'Back to the work'. Button, textarea and placeholder rules are scoped under :host so Twind's preflight (an adopted stylesheet that cascades after the shadow <style>) can't strip the oxblood fill or the textarea's Newsreader font and padding. A 12px --soft footnote: 'Only you can see your exhibitions.' 44px hit targets, 2px oxblood focus ring, reduced motion respected."
+  },
+  "dependencies": [],
+  "interactions": [
+    {
+      "trigger": "On mount, only with a valid artwork-id (preview; same body as the artwork page, usually a cache hit)",
+      "method": "POST",
+      "route": "/artwork/<artwork-id>",
+      "bodyShape": "READS.artwork(id): { intent: 'get artwork details (GetArtwork)', id, outputFormat: <full GetArtwork format> } — uses title, artist, date, museum, imageUrl, imageAlt"
+    },
+    {
+      "trigger": "Form submitted with a non-empty title",
+      "method": "POST",
+      "route": "/exhibitions/new",
+      "bodyShape": "WRITES.create: { intent: 'create an exhibition (CreateExhibition)', title, subtitle?, description?, outputFormat: { id: 'string', title: 'string' } }"
+    },
+    {
+      "trigger": "After create, only with artwork-id; on failure the exhibition still exists, so an 'Exhibition created, but the opening work couldn't be added' panel links to it and back to the work",
+      "method": "POST",
+      "route": "/exhibitions/<new id>",
+      "bodyShape": "WRITES.add: { intent: 'add an artwork to my exhibition (AddToExhibition)', exhibitionId, artworkId, outputFormat: { exhibitionId: 'string', artworkCount: 'number' } }"
+    }
+  ],
+  "markupSketch": "<form><fieldset><span class=kicker>New exhibition</span><div class=open><div class=mat><img src=/__art/...></div><div><span class=label>Opening with</span><p class=t>{title}</p><p>{artist}</p></div></div><label>Title</label><input name=title maxlength=120><label>Subtitle</label><input name=subtitle maxlength=200><label>Introduction</label><span class=num>0 / 4,000</span><textarea name=description rows=6 maxlength=4000></textarea><p role=alert></p><button class=btn>Create exhibition</button><a href=/exhibitions>Cancel</a></fieldset><p class=note>Only you can see your exhibitions.</p></form>"
+}

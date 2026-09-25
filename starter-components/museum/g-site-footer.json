@@ -1,0 +1,18 @@
+{
+  "prompt": "Vitrine site footer shown last on every museum page: wordmark and motto, the nav links again, and credits to the Art Institute of Chicago, The Met and Wikipedia for the real images and texts.",
+  "id": "g-site-footer",
+  "shortDesc": "Site footer: put it last on EVERY page, after </main>, always as <g-site-footer></g-site-footer>. It credits the Art Institute of Chicago, The Met and Wikipedia for the images and texts, states that no art on the site is AI-generated, and repeats the nav links (Highlights, Collections, My exhibitions, Search). Needs no attributes; site-name=\"Vitrine\" only if the header uses a different name.",
+  "role": "layout",
+  "props": [
+    { "name": "site-name", "type": "string", "required": false, "description": "Wordmark text, matching g-site-header's site-name. Default \"Vitrine\"." }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "grid grid-cols-1 min-[860px]:grid-cols-[2fr_1fr_2fr] gap-8 max-w-[1240px] mx-auto px-4 py-7 min-[860px]:px-8 min-[860px]:py-10 bg-[#fffdf9] border-t border-[#e0d9cd]",
+    "palette": ["#fffdf9", "#e0d9cd", "#1d1b18", "#6b645a", "#7d2a26", "#5f1f1c", "#f3e4e1", "#a8844a"],
+    "notes": "Full-bleed --paper band with a 1px --rule top border; 1240px inner grid 2fr/1fr/2fr (32px gap, 40px 32px padding) from 860px up (the same breakpoint as g-site-header), stacking to one column below it (28px 16px). Column 1: Newsreader 500 20px wordmark with an 8px oxblood pin, an italic serif motto in --soft and a short gilt hairline. Column 2: 'Visit' label and a 14px nav list (44px targets below 860px, 32px above). Column 3: 'Credits' label and 13px --soft credits with oxblood external links (new tab, rel=noopener, screen-reader hint). A hairline-ruled base row carries the year and name. Oxblood focus ring from TOKENS."
+  },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<footer><div class=wrap><div><a class=mark href=/><i></i>Vitrine</a><p class=motto>Two museums' collections on one quiet wall.</p></div><nav aria-label=Footer><h2 class=label>Visit</h2><ul role=list><li><a href=/highlights>Highlights</a></li><li><a href=/collections>Collections</a></li><li><a href=/exhibitions>My exhibitions</a></li><li><a href=/search/>Search the collections</a></li></ul></nav><div class=credits><h2 class=label>Credits</h2><p>Images and data from the <a href=https://www.artic.edu/open-access>Art Institute of Chicago</a> API (CC0) and <a>The Metropolitan Museum of Art</a> Open Access. Biographies from <a>Wikipedia</a> (CC BY-SA).</p><p>Every picture is the museums' own photograph; nothing here is AI-generated art.</p></div></div><div class=base>© year Vitrine</div></footer>"
+}

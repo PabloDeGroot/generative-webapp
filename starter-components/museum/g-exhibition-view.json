@@ -1,0 +1,47 @@
+{
+  "prompt": "The whole page of one of the signed-in user's exhibitions: title wall with the page h1, a floor plan of thumbnails, then a numbered walk-through of framed stops, with inline editing and deletion for the owner.",
+  "id": "g-exhibition-view",
+  "shortDesc": "The whole /exhibitions/<exhibition id> page (also /exhibition/<id>) from one id, e.g. <g-exhibition-view exhibition-id=\"x7Qp2\"></g-exhibition-view>. Put it ALONE in <main> (after g-site-header, before g-site-footer), with no wrapper section and no other heading: it renders the page h1 (the exhibition title), the title wall (subtitle, introduction, work count, thumbnail floor plan), then a numbered walk-through with one stop per work (large image, wall label, curator's note). The owner can edit the texts inline, remove works and delete the exhibition. Exhibitions are private: the component itself shows signed-out visitors a sign-in message and wrong ids a not-found message. Never use it for /exhibitions/new (that is g-exhibition-form).",
+  "role": "leaf",
+  "props": [
+    {
+      "name": "exhibition-id",
+      "type": "string",
+      "required": true,
+      "description": "Exhibition id from the URL, e.g. x7Qp2 (never 'new': /exhibitions/new is the form page). Copy the segment after /exhibitions/ or /exhibition/ as-is."
+    }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "block bg-stone-50; page: max-w-[1240px] mx-auto px-4 pt-7 pb-14 md:px-8 md:pt-12 md:pb-20; wall: relative max-w-[820px] mx-auto text-center border border-amber-700 rounded-sm px-5 py-11 md:px-14 md:py-16; stops: grid gap-[72px] list-none",
+    "palette": ["#f6f3ee", "#fffdf9", "#ebe6dc", "#e0d9cd", "#1d1b18", "#6b645a", "#7d2a26", "#5f1f1c", "#f3e4e1", "#a8844a", "#a3321f", "#2f6b45"],
+    "notes": "VITRINE kit. Title wall: centred 820px panel on --wall framed by a gilt hairline plus an inner 6px-inset gilt hairline; oxblood 'EXHIBITION' kicker; h1 Newsreader 500 clamp(40px,6vw,60px), balanced; subtitle italic 22px --soft; a 40px gilt rule; introduction Newsreader 18px/1.65 paragraphs in a 60ch left-aligned column; tabular '9 works · updated 3 days ago'; actions 'Begin the walk-through ↓' (solid oxblood), 'Edit details' (ghost) and a quiet 'Delete exhibition' text button. Edit details swaps the texts for an inline form (serif title input, italic subtitle, serif introduction textarea with a 'n / 4,000' counter, Save / Cancel, Escape cancels). Delete asks 'Delete “<title>” for good?' with Delete (--error) and Keep it. Floor plan: 'FLOOR PLAN' label and a scrollable row of 56px --mat thumbnails with stop numbers, sticky at the top on desktop (--wall at 92% with a backdrop blur); the stop in view (IntersectionObserver) gets a gilt frame and an oxblood numeral underline, and the strip follows it. Stops: <ol> of g-exhibition-stop with 72px gaps and a 40px gilt hairline between them; plan and 'Begin' links scroll inside the shadow DOM (instant under reduced motion) and focus the stop; #stop-n in the URL is honoured. Closing wall: count kicker, italic 30px 'End of the exhibition', 'Back to top' and 'Add more works →' (/highlights). Empty, signed-out ('A private exhibition'), not-found ('Exhibition not found': only a 404/'not found' error or a missing id) and load-failure ('Couldn\u2019t load this exhibition', with the error message and a Try again button that re-reads) states each keep an h1; Escape only acts when pressed inside the title wall, never inside a stop; loading shows mat skeletons of the title wall, plan and one stop. Images only from /__art/ URLs; failures show the neutral typographic placeholder."
+  },
+  "dependencies": [
+    {
+      "id": "g-exhibition-stop",
+      "usage": "One per work, in order: exhibition-id, artwork-id=id, position (1-based), total, artwork-title=title, artist, date, museum, image-url=imageUrl, image-alt=imageAlt, note; the first two with eager. It saves removals itself and dispatches a bubbling 'g-exhibition-change' event with detail.removed (the artwork id, or true with detail.artworkId); the view drops that stop locally, renumbers the rest and updates the count and floor plan."
+    }
+  ],
+  "interactions": [
+    {
+      "trigger": "component mounts or exhibition-id changes",
+      "method": "POST",
+      "route": "/exhibitions/{exhibition-id}",
+      "bodyShape": "READS.exhibition(id): { intent: 'get my exhibition (GetExhibition)', exhibitionId, outputFormat: { id, title, subtitle, description, updatedAt, artworks: [{ id, title, artist, date, museum, imageUrl, thumbUrl, imageAlt, note }] } }"
+    },
+    {
+      "trigger": "Save in the Edit details form",
+      "method": "POST",
+      "route": "/exhibitions/{exhibition-id}",
+      "bodyShape": "WRITES.update(id, title, subtitle, description): { intent: 'update my exhibition (UpdateExhibition)', exhibitionId, title, subtitle, description, outputFormat: { id } } (all three strings always sent so fields can be cleared; local state updates without refetching, except that clearing the subtitle or introduction re-reads READS.exhibition(id) to confirm the field was emptied and shows an error if it was kept)"
+    },
+    {
+      "trigger": "Delete confirmed",
+      "method": "POST",
+      "route": "/exhibitions/{exhibition-id}",
+      "bodyShape": "WRITES.delete(id): { intent: 'delete my exhibition (DeleteExhibition)', exhibitionId, outputFormat: { deleted } }, then location.assign('/exhibitions')"
+    }
+  ],
+  "markupSketch": "<div class=page><header class=wall><p class=kicker>Exhibition</p><h1>{title}</h1><p class=\"sub t\">{subtitle}</p><hr class=rule><div class=intro><p>{description paragraphs}</p></div><p class=\"meta num\">9 works · updated 3 days ago</p><div class=actions><a class=btn href=#stop-1>Begin the walk-through ↓</a><button class=\"btn ghost\">Edit details</button><button class=quiet>Delete exhibition</button></div></header><nav class=plan aria-label=\"Floor plan\"><span class=label>Floor plan</span><ol class=thumbs><li><a class=thumb href=#stop-1 aria-label=\"1. {title}\"><span class=mat><img src={thumbUrl} loading=lazy></span><span class=n>1</span></a></li>…</ol></nav><section class=walk><h2 class=sr>The walk-through</h2><ol class=stops><li id=stop-1><g-exhibition-stop exhibition-id artwork-id position=1 total artwork-title artist date museum image-url image-alt note eager></g-exhibition-stop></li>…</ol></section><footer class=end><p class=kicker>9 works</p><h2>End of the exhibition</h2><a class=\"btn ghost\">Back to top</a><a class=btn href=/highlights>Add more works →</a></footer></div>"
+}

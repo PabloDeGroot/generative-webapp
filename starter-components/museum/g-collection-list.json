@@ -1,0 +1,25 @@
+{
+  "prompt": "The museums' collections (departments) as framed tiles with a real cover work, grouped by museum on /collections or shown as a short teaser rail elsewhere. Loads its own data.",
+  "id": "g-collection-list",
+  "shortDesc": "The museums' collections (departments) as tiles with a real cover work, each linking to /collections/<id>. It loads them itself (don't wrap it in g-grid, and put it inside a g-page-section for its heading). Use it on /collections with no attributes (grouped by museum automatically, sorted by name), and as a teaser with limit and layout=\"rail\" on the home page (e.g. limit=\"10\" layout=\"rail\") and on /collections/<id> (there add exclude=\"<that id>\"; a single excluded id also limits the list to that id's museum, e.g. <g-collection-list exclude=\"met-11\" limit=\"8\" layout=\"rail\">). A rail or limited teaser with nothing to show hides itself and its g-page-section. All instances share one request, so several on a page cost nothing extra.",
+  "role": "leaf",
+  "props": [
+    { "name": "museum", "type": "string", "required": false, "description": "aic, met or both; any other value means both. Filtered on the client by the id prefix. When omitted, a single exclude id sets it to that id's museum (otherwise both)." },
+    { "name": "exclude", "type": "string", "required": false, "description": "A collection id to leave out, e.g. the current page's met-11 (comma-separated ids also work). A single id with no museum attribute also shows only that id's museum." },
+    { "name": "limit", "type": "number", "required": false, "description": "Show at most this many tiles, e.g. limit=\"8\" (default all). With a limit the two museums alternate, with no group headings, and collections with a cover image come first." },
+    { "name": "layout", "type": "string", "required": false, "description": "grid (default) or rail (one horizontally scrolling row with previous/next buttons; ideal for teasers)." }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "grid grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] gap-6; rail: flex gap-5 overflow-x-auto snap-x snap-mandatory [&>*]:w-[220px] [&>*]:shrink-0",
+    "palette": ["#f6f3ee wall", "#fffdf9 paper", "#ebe6dc mat", "#e0d9cd rule", "#1d1b18 ink", "#6b645a soft", "#7d2a26 oxblood", "#f3e4e1 oxblood-tint", "#a8844a gilt"],
+    "notes": "VITRINE kit. Grouped view: each museum headed by an h3 oxblood small-caps kicker, a hairline rule, and a soft 'n collections' count; groups 44px apart. Rail: scroll-snap row of 220px (240px from 860px) tiles, a hairline track with a gilt position thumb, and 44px square previous/next buttons (hidden when nothing overflows); arrow keys move focus tile to tile and scroll it into view; 10px/8px inner padding so focus rings are not clipped. Loading: 6 mat-coloured skeleton tiles (4:3 frame plus two lines) with a 1.6s pulse. Empty: a rail or limited teaser hides itself and its g-page-section; the full view shows italic serif 'No collections available right now.' A requested museum returning no departments counts as a load failure: .error 'Couldn't load the collections of <museum> right now.' with a ghost 'Try again' (below the other museum's group in the grouped view). Error: .error text with a ghost 'Try again' button. Reduced motion disables smooth scrolling and pulses."
+  },
+  "dependencies": [
+    { "id": "g-collection-tile", "usage": "One tile per department: collection-id=id, name, museum, image-url=coverImageUrl (a /__art/ URL, or empty for the typographic placeholder)." }
+  ],
+  "interactions": [
+    { "trigger": "component mounts (shared by every instance on the page)", "method": "POST", "route": "/collections", "bodyShape": "READS.collections(): { intent: 'list museum collections (ListDepartments)', museum: 'both', outputFormat: { departments: [{ id, museum, name, coverImageUrl }] } }" }
+  ],
+  "markupSketch": "<div class=wrap aria-busy><section class=group aria-labelledby=h-aic><div class=group-head><h3 class=kicker>Art Institute of Chicago</h3><span class=rule></span><span class=label>12 collections</span></div><div class=grid><g-collection-tile collection-id name museum image-url></g-collection-tile>…</div></section><section class=group>…The Met…</section></div> | rail: <div class=rail role=group><g-collection-tile …>…</div><div class=controls><span class=track><span class=thumb></span></span><button class=nav prev></button><button class=nav next></button></div>"
+}

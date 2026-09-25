@@ -1,0 +1,51 @@
+{
+  "prompt": "Vitrine layout: main content with a sidebar, for the few pages that need one (e.g. a form with suggestions beside it).",
+  "id": "g-split",
+  "shortDesc": "Two columns: main content plus a sidebar (right by default), stacking on phones with the sidebar after. Put slot=\"main\" on each main-column child and slot=\"aside\" on each sidebar child: a g-page-section in either slot drops its band padding and background and just gives its children a heading, so g-split supplies the page padding (28px 16px, 48px 32px from 860px, the section rhythm) and can follow g-site-header directly. Don't put g-split inside a g-page-section or another padded wrapper, and don't leave a g-page-section in it without a slot attribute (it would keep its band padding and be indented twice). Optional and rarely needed: artwork, artist, collection, search and exhibition pages lay themselves out; it suits a form page with suggestions beside it. Complete /exhibitions/new example (the level=\"1\" section is the page h1 and holds the form, as g-exhibition-form requires): <g-split aside-width=\"wide\"><g-page-section slot=\"main\" level=\"1\" kicker=\"Your exhibitions\" heading=\"Start an exhibition\"><g-exhibition-form></g-exhibition-form></g-page-section><g-page-section slot=\"aside\" heading=\"Works to build around\"><g-artwork-grid limit=\"4\" min-width=\"150\"></g-artwork-grid></g-page-section></g-split>. Attributes: aside-width=\"narrow\" (300px, default) or \"wide\" (380px); aside-side=\"left\" or \"right\" (default); sticky (no value) keeps the sidebar in view. With an empty aside the main column takes the full width.",
+  "role": "layout",
+  "props": [
+    {
+      "name": "aside-width",
+      "type": "string",
+      "required": false,
+      "description": "narrow (300px, default) or wide (380px)."
+    },
+    {
+      "name": "aside-side",
+      "type": "string",
+      "required": false,
+      "description": "left or right (default). On phones the sidebar always comes after the main content."
+    },
+    {
+      "name": "sticky",
+      "type": "boolean",
+      "required": false,
+      "description": "Boolean attribute (write sticky with no value) to keep the sidebar in view while the main column scrolls; a sidebar taller than the window scrolls on its own and becomes keyboard-focusable. Omit it to turn it off (sticky=\"false\" is also treated as off, but don't write it)."
+    }
+  ],
+  "slots": [
+    {
+      "name": "main",
+      "description": "Main column, stacked with 24px gaps (put slot=\"main\" on each child). A g-page-section here drops its band padding; use level=\"1\" when it holds the page title.",
+      "accepts": "any kit components"
+    },
+    {
+      "name": "",
+      "description": "Also the main column, for children without a slot attribute (after the slot=\"main\" ones). Don't put g-page-section here: without a slot attribute it keeps its full band padding.",
+      "accepts": "kit components other than g-page-section"
+    },
+    {
+      "name": "aside",
+      "description": "Sidebar content, stacked with 24px gaps (put slot=\"aside\" on each child). A g-page-section here drops its band padding and background; use level=\"3\" when the main column has h2 headings.",
+      "accepts": "any kit components"
+    }
+  ],
+  "styling": {
+    "tailwindClasses": "grid grid-cols-1 min-[860px]:grid-cols-[minmax(0,1fr)_300px] gap-8 min-[860px]:gap-10 max-w-[1240px] mx-auto px-4 py-7 min-[860px]:px-8 min-[860px]:py-12",
+    "palette": [],
+    "notes": "Vitrine: a quiet gallery wall. Layout only, no colours of its own (children bring the wall/paper tones). Grid of minmax(0,1fr) plus 300px or 380px, 40px gap (32px stacked), 1240px max, centred, padding 28px 16px (48px 32px from 860px, the same rhythm as a g-page-section band, so it never sits flush on the header or footer). One column below 860px with main first. With sticky (any value but \"false\") the aside is position:sticky; top:24px; align-self:start with a 4px inset so focus rings aren't clipped, and gets tabindex=0 while it overflows. Driven by :host attribute selectors, so attribute changes restyle instantly. Columns are a div and an <aside> (the page already owns <main id=\"main\">)."
+  },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div class=split><div class=col><slot name=main></slot><slot></slot></div><aside class=col aria-label=Related><slot name=aside></slot></aside></div>"
+}

@@ -32,6 +32,8 @@ const log = logger.child('hooks');
 const SESSION_AUTH_PATH = '/__session-auth';
 const IMAGE_PATH = /\.(png|jpg|jpeg|gif|webp|avif|svg)$/i;
 const FAVICON_PATH = /favicon\.(png|ico)$/i;
+// Real images proxied by the /__art route (museum artwork, Wikimedia); never generated.
+const ART_PREFIX = '/__art/';
 
 async function handleImageRequest(event: RequestEvent, pathname: string): Promise<Response> {
     const imgLog = log.child('image', { route: pathname });
@@ -166,7 +168,7 @@ export const handle: Handle = async ({ event, resolve }) => {
             const stop = log.time('request', { user_agent: userAgent, authenticated: Boolean(auth.userId) });
             try {
                 const pathname = event.url.pathname;
-                if (IMAGE_PATH.test(pathname)) {
+                if (IMAGE_PATH.test(pathname) && !pathname.startsWith(ART_PREFIX)) {
                     if (FAVICON_PATH.test(pathname)) {
                         return new Response(null, {
                             status: 204,

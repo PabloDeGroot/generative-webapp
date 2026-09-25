@@ -1,0 +1,36 @@
+{
+  "prompt": "One numbered stop in a user's exhibition walk-through: a large uncropped real image beside a museum wall label and the curator's note, with an inline-confirmed Remove.",
+  "id": "g-exhibition-stop",
+  "shortDesc": "One numbered stop in an exhibition walk-through: a large uncropped image (4:3 mat, linking to /artwork/<artwork-id>), the stop number '03 / 12', the italic title as an h2, the artist (linked to /artist/<name>) with the date, the museum, the curator's note as a blockquote, 'View the work →' and 'Next stop →' links (inside g-exhibition-view, Next stop uses the view's jump so the sticky floor plan, hash and current thumb stay right), and a Remove button with an inline 'Remove from exhibition? Yes · Cancel' confirm. g-exhibition-view renders these for you from GetExhibition: never place one directly on a page. Attribute formats, copied from one GetExhibition artwork: exhibition-id=\"x7Qp2\", artwork-id=\"aic-16568\" (or \"met-436535\"), position=\"1\" (1-based), total=\"9\", artwork-title (the work's title; not the global title attribute, which would be a tooltip over the whole stop), artist, date=\"1906\", museum=\"Art Institute of Chicago\" or \"The Met\", image-url = imageUrl (starts with /__art/), image-alt = imageAlt, note; add the boolean eager on the first one or two stops. Never pass a generated /images/ URL: it is ignored and a typographic placeholder shows.",
+  "role": "leaf",
+  "props": [
+    { "name": "exhibition-id", "type": "string", "required": true, "description": "Exhibition id, used by Remove. Without it (or without a valid artwork-id) no Remove button is shown." },
+    { "name": "artwork-id", "type": "string", "required": true, "description": "aic-<n> or met-<n>, e.g. aic-16568. The image and 'View the work' link to /artwork/<artwork-id>; an invalid id shows the stop unlinked." },
+    { "name": "position", "type": "number", "required": true, "description": "1-based stop number. Odd stops hang the image on the left, even on the right; the host gets id=\"stop-<position>\" unless it already has an id." },
+    { "name": "total", "type": "number", "required": false, "description": "Total number of stops: shown as '03 / 12' and enables 'Next stop →' while position < total." },
+    { "name": "artwork-title", "type": "string", "required": true, "description": "Artwork title, shown as the stop's h2 in italic serif (wall-label style). A global title attribute is still read for older markup, then removed from the element so it doesn't show a native tooltip over the stop." },
+    { "name": "artist", "type": "string", "required": false, "description": "Artist display name, linked to /artist/<name> (not linked for 'Unknown artist')." },
+    { "name": "date", "type": "string", "required": false, "description": "Display date, e.g. \"1906\" or \"c. 1760–70\"." },
+    { "name": "museum", "type": "string", "required": false, "description": "\"Art Institute of Chicago\" or \"The Met\"." },
+    { "name": "image-url", "type": "string", "required": false, "description": "imageUrl from the tool (/__art/…, ~843px). Anything not starting with /__art/ is ignored and the placeholder shows." },
+    { "name": "image-alt", "type": "string", "required": false, "description": "imageAlt from the tool. Falls back to '<title> by <artist>'." },
+    { "name": "note", "type": "string", "required": false, "description": "Curator's note (stored HTML-escaped; decoded once and re-escaped). Blank lines or newlines split paragraphs. Omitted entirely when empty." },
+    { "name": "eager", "type": "boolean", "required": false, "description": "Boolean attribute: present on the first stop(s) so the image loads eagerly with high fetch priority; others load lazily." }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "article: grid gap-6 py-7 md:grid-cols-[3fr_2fr] md:gap-14 md:py-12 items-center (flipped to 2fr/3fr with the image second on even stops); mat: relative grid place-items-center aspect-[4/3] max-h-[72vh] w-full bg-stone-200 rounded-sm; text column max-w-[34rem]",
+    "palette": ["#ebe6dc", "#1d1b18", "#6b645a", "#7d2a26", "#5f1f1c", "#a8844a", "#7a5c2a", "#e0d9cd", "#a3321f"],
+    "notes": "VITRINE kit. Image: 4:3 --mat box, max-height 72vh, object-fit: contain with 7% padding and a soft drop-shadow (never cropped), fading in over 250ms while the mat pulses as a skeleton; a failed or non-/__art image shows the neutral placeholder (italic title + 'IMAGE UNAVAILABLE'). Hover on the image: 1px gilt inset. Stop number: 13px tabular Instrument Sans in --gilt-ink after a 28px gilt hairline. Title: h2 Newsreader italic 500, 30px (24px on phones). Artist 15px 500 with a 1px --soft underline (visible link cue) turning oxblood on hover, date in --soft; museum as .label small caps. Note: <blockquote> Newsreader 20px/1.55 (18px on phones) with a 2px gilt left rule. Links: 'View the work →' in oxblood, 'Next stop →' in ink. Actions under a hairline: 'Remove' text button in --soft (oxblood underline on hover), 44px targets. Removal collapses the stop (rows 1fr→0fr, fade, 450ms) and the change event fires only after the collapse; reduced motion removes all transitions."
+  },
+  "dependencies": [],
+  "interactions": [
+    {
+      "trigger": "Remove, then Yes in the inline confirm (focus moves to Yes; Escape or Cancel returns to Remove). The stop collapses optimistically; on failure it reopens with the error in role=alert. On success, once the collapse has finished (immediately with reduced motion), it dispatches 'g-exhibition-change' (bubbles, composed, cancelable, detail { exhibitionId, artworkId, removed: true, artworkCount }). The host owns focus: g-exhibition-view drops the stop and focuses the next one itself. Only when the host neither removes the stop from the page nor calls preventDefault does the stop hide itself and move focus to the next (or previous) stop's heading.",
+      "method": "POST",
+      "route": "/exhibitions/{exhibition-id}",
+      "bodyShape": "WRITES.remove(exhibitionId, artworkId): { intent: 'remove an artwork from my exhibition (RemoveFromExhibition)', exhibitionId, artworkId, outputFormat: { exhibitionId: 'string', artworkCount: 'number' } } via writeAction (never memoised; clears the page's read memo)"
+    }
+  ],
+  "markupSketch": "<div class=fold><article class=\"{even ? flip}\" aria-labelledby=h><div class=art><a class=frame href=/artwork/{artwork-id} tabindex=-1><div class=mat style=aspect-ratio:4/3><img src={image-url} alt={image-alt} loading={eager ? eager : lazy} decoding=async></div></a></div><div class=text><p class=no>03 / 12</p><h2 id=h class=t>{artwork-title}</h2><p class=who><a href=/artist/{artist}>{artist}</a>, {date}</p><p class=label>{museum}</p><blockquote><p>{note}</p></blockquote><div class=links><a href=/artwork/{artwork-id}>View the work →</a><a href=#stop-{position+1}>Next stop →</a></div><div class=actions><button>Remove</button> | Remove from exhibition? <button>Yes</button> · <button>Cancel</button></div></div></article></div>"
+}

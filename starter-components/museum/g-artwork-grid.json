@@ -1,0 +1,124 @@
+{
+  "prompt": "The self-loading list of artworks for search, artist, collection, highlights/theme and 'more by this artist' sections, rendered as framed g-artwork-card cards in a grid or a horizontal rail.",
+  "id": "g-artwork-grid",
+  "shortDesc": "THE list of artworks: it loads works itself and hangs them as framed cards. Never wrap it in g-grid; it has no heading of its own, so put it inside a g-page-section. Set AT MOST ONE source, copying values from the URL decoded: search=\"<query>\" (shows a 'Showing 24 of 1,203 works' count line and the best 24; no paging), artist=\"<name>\", collection=\"<collection id>\", theme=\"<theme>\" (falls back to search results when the theme has no highlights) or more-by-artist-of=\"<artwork id>\" (other works by that work's artist; on /artwork/<id> put it under g-artwork-view in a section headed 'More by this artist', since the page can't know the name). With no source it shows the museums' highlights. limit and layout only change the display, never the request. An empty rail, and a more-by-artist-of list that is empty or fails to load (g-artwork-view already shows that error), hide themselves AND their enclosing g-page-section, so no empty band shows; other empty lists show a helpful message, and other errors show an error with 'Try again'. Examples: <g-artwork-grid search=\"water lilies\"></g-artwork-grid> · <g-artwork-grid artist=\"Katsushika Hokusai\"></g-artwork-grid> · <g-artwork-grid collection=\"met-11\"></g-artwork-grid> · <g-artwork-grid theme=\"the sea\" limit=\"8\"></g-artwork-grid> · <g-artwork-grid more-by-artist-of=\"aic-16568\" layout=\"rail\"></g-artwork-grid> · <g-artwork-grid limit=\"8\" layout=\"rail\"></g-artwork-grid> (home teaser of highlights).",
+  "role": "leaf",
+  "props": [
+    {
+      "name": "search",
+      "type": "string",
+      "required": false,
+      "description": "Free-text query, the decoded /search/<query> segment, e.g. \"water lilies\"."
+    },
+    {
+      "name": "museum",
+      "type": "string",
+      "required": false,
+      "description": "With search only, rarely needed: aic, met or both (default)."
+    },
+    {
+      "name": "artist",
+      "type": "string",
+      "required": false,
+      "description": "Artist name, the decoded /artist/<name> segment as-is, e.g. \"Katsushika Hokusai\" (the tool matches spelling variants). Never set it empty: artist=\"\" shows 'No artist was chosen.'"
+    },
+    {
+      "name": "collection",
+      "type": "string",
+      "required": false,
+      "description": "Collection id from /collections/<id>, e.g. met-11 or aic-PC-10."
+    },
+    {
+      "name": "theme",
+      "type": "string",
+      "required": false,
+      "description": "Highlight theme, the decoded /highlights/<theme> segment, e.g. \"impressionism\" or \"the sea\". A theme with no imaged highlights falls back to search: it fetches 24 and shows a 'Search results for “<theme>” · Showing 24 of N works' count line. Omit theme (don't set it empty) for the general highlights; theme=\"\" shows 'No theme was chosen.'"
+    },
+    {
+      "name": "more-by-artist-of",
+      "type": "string",
+      "required": false,
+      "description": "An artwork id; shows up to 8 other works by its artist. Use on /artwork/<id> with the same id."
+    },
+    {
+      "name": "limit",
+      "type": "number",
+      "required": false,
+      "description": "Max works shown, e.g. limit=\"8\" (display only). Fetched sizes: search and collection 24, highlights and artist 12, more-by-artist 8; a theme that falls back to search fetches 24 and shows a 'Search results for …' count line."
+    },
+    {
+      "name": "layout",
+      "type": "string",
+      "required": false,
+      "description": "grid (default) or rail (one horizontally scrolling row, good for 'more by this artist' and teasers)."
+    },
+    {
+      "name": "min-width",
+      "type": "number",
+      "required": false,
+      "description": "grid: minimum card width in px (default 200)."
+    },
+    {
+      "name": "empty-text",
+      "type": "string",
+      "required": false,
+      "description": "Overrides the empty-state message (rarely needed; the defaults are good)."
+    }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "grid grid-cols-[repeat(auto-fill,minmax(min(200px,100%),1fr))] gap-x-5 gap-y-8 text-stone-900; rail: grid grid-flow-col auto-cols-[180px] gap-3.5 overflow-x-auto snap-x snap-mandatory; count line text-[13px] text-stone-500 tabular-nums",
+    "palette": [
+      "#f6f3ee wall",
+      "#fffdf9 paper",
+      "#ebe6dc mat",
+      "#e0d9cd rule",
+      "#1d1b18 ink",
+      "#6b645a soft",
+      "#7d2a26 oxblood",
+      "#5f1f1c oxblood-deep",
+      "#f3e4e1 oxblood-tint",
+      "#a3321f error"
+    ],
+    "notes": "VITRINE kit. Grid: <ul role=list> of g-artwork-card, 32px row gap, 20px column gap, min card width from min-width (default 200px), one column on small phones. Rail: role=region (aria-label, tabindex=0 so arrow keys scroll) with scroll-snapped 180px small cards, 14px gap, and 44px circular paper prev/next buttons ('Scroll left/right') over the mat's middle, hidden when nothing overflows and dimmed to .35 with aria-disabled (never disabled, so focus stays) at either end, scrolling 80% of the width (instant under reduced motion). Search count line 13px --soft tabular-nums. Loading: min(limit,8) skeleton cards (4:5 --mat frame + two bars, 1.6s pulse) with aria-busy. Empty: italic serif --soft line with oxblood links to /highlights and /collections, above a hairline. Error: .error text + ghost 'Try again' button. Only real /__art images (artSrc); cards show a typographic placeholder otherwise."
+  },
+  "dependencies": [
+    {
+      "id": "g-artwork-card",
+      "usage": "One card per work: artwork-id=id, artwork-title=title, artist, date, museum, image-url=thumbUrl, image-large-url=imageUrl, image-alt=imageAlt (all escaped); size=\"small\" in rail layout."
+    }
+  ],
+  "interactions": [
+    {
+      "trigger": "mount / more-by-artist-of changes (shared with g-artwork-view)",
+      "method": "POST",
+      "route": "/artwork/{id}",
+      "bodyShape": "READS.artwork(id): { intent: 'get artwork details (GetArtwork)', id, outputFormat: {…full artwork…, moreByArtist: [CARD]} }; reads moreByArtist"
+    },
+    {
+      "trigger": "mount / search or museum changes; also the theme fallback (shared with g-feature-hero)",
+      "method": "POST",
+      "route": "/search/{query}",
+      "bodyShape": "READS.search(query, museum): { intent: 'search artworks (SearchArtworks)', query, museum: 'aic'|'met'|'both', limit: 24, outputFormat: { query, total, artworks: [CARD] } }"
+    },
+    {
+      "trigger": "mount / artist changes (shared with g-artist-profile)",
+      "method": "POST",
+      "route": "/artist/{name}",
+      "bodyShape": "READS.artist(name): { intent: 'get artist profile and works (GetArtist)', name, outputFormat: { name, description, bio, born, died, portraitUrl, wikipediaUrl, artworks: [CARD] } }"
+    },
+    {
+      "trigger": "mount / collection changes (shared with g-feature-hero collection=)",
+      "method": "POST",
+      "route": "/collections/{id}",
+      "bodyShape": "READS.collection(id): { intent: 'get a collection and its works (GetDepartment)', id, limit: 24, outputFormat: { id, name, museum, artworks: [CARD] } }"
+    },
+    {
+      "trigger": "mount with theme or no source (shared with g-feature-hero)",
+      "method": "POST",
+      "route": "/highlights or /highlights/{theme}",
+      "bodyShape": "READS.highlights(theme?): { intent: 'get museum highlights (GetHighlights)', theme?, limit: 12, outputFormat: { theme, artworks: [CARD] } }; a theme with no imaged works falls back to READS.search(theme)"
+    }
+  ],
+  "markupSketch": "<p class=meta>Showing <b>24</b> of 1,203 works</p><ul class=grid role=list aria-label=\"Search results for “water lilies”\"><li><g-artwork-card artwork-id artwork-title artist date museum image-url image-large-url image-alt></g-artwork-card></li>…</ul> | rail: <div class=wrap><button class=\"arrow prev\" aria-label=\"Scroll left\"></button><div class=rail role=region aria-label tabindex=0><ul class=track role=list><li><g-artwork-card … size=small></g-artwork-card></li>…</ul></div><button class=\"arrow next\" aria-label=\"Scroll right\"></button></div>"
+}

@@ -1,0 +1,21 @@
+{
+  "prompt": "Vitrine layout: responsive grid for a few hand-placed cards or tiles. Layout only; it fetches nothing and has no colours or padding of its own.",
+  "id": "g-grid",
+  "shortDesc": "Responsive grid for HAND-PLACED cards only (g-artwork-card, g-collection-tile): as many columns as fit, each at least min-width wide, one column on small phones. Rarely needed: never wrap the self-loading lists (g-artwork-grid, g-collection-list, g-exhibition-list) in it, they lay themselves out. Every direct child becomes its own cell, so never put a loose g-add-to-exhibition next to a card: wrap the card and its button together in one plain <div> (the grid stacks the div's children with a small gap). Put it inside a g-page-section. Attributes: min-width=\"240\" (px number, default 220; use ~200 for artwork cards, ~260 for collection tiles), gap=\"tight\" | \"normal\" | \"loose\" (10 / 16 / 32px, default normal). Example: <g-grid min-width=\"240\"><g-collection-tile collection-id=\"met-11\" name=\"European Paintings\" museum=\"The Met\"></g-collection-tile></g-grid>",
+  "role": "layout",
+  "props": [
+    { "name": "min-width", "type": "number", "required": false, "description": "Minimum column width in px (default 220, clamped to 120-640; \"240px\" also accepted). Smaller means more columns." },
+    { "name": "gap", "type": "string", "required": false, "description": "Space between items: tight (10px), normal (16px, default) or loose (32px)." }
+  ],
+  "slots": [
+    { "name": "", "description": "Items to lay out; each direct child is one cell and stretches to the full row height so card captions line up. A plain <div> child stacks its own children (e.g. a card and its g-add-to-exhibition button) with a 10px gap.", "accepts": "cards and tiles from this kit: g-artwork-card, g-collection-tile; to give a hand-picked work an add button, one <div> per cell holding <g-artwork-card> then <g-add-to-exhibition> with the same artwork-id" }
+  ],
+  "styling": {
+    "tailwindClasses": "grid grid-cols-[repeat(auto-fill,minmax(min(220px,100%),1fr))] gap-4 items-stretch",
+    "palette": [],
+    "notes": "Vitrine kit. Neutral: no colours, borders or padding of its own; the surrounding g-page-section provides the band and margins, the cards provide the mats and wall labels. Gaps follow the kit spacing (10/16/32px). Collapses to a single column below 360px of available width. Direct <div> children become flex columns (10px gap) so a card and its button share one cell. Exposes part=\"grid\"."
+  },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div class=grid part=grid style='--min:{min-width}px; --gap:{gap}'><slot></slot></div>"
+}

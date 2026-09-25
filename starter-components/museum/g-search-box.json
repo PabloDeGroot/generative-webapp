@@ -1,0 +1,21 @@
+{
+  "prompt": "Vitrine search field for the museum site: the big query box in the home hero and at the top of search results.",
+  "id": "g-search-box",
+  "shortDesc": "Big search field for artworks, artists and subjects; submitting opens /search/<query>. Use it in exactly three places: inside the home page's g-feature-hero with no attributes (<g-search-box></g-search-box>), on the bare /search/ page (no query) with size=\"regular\" and hide-label, since the section heading above already reads \"Search the collections\" (<g-search-box size=\"regular\" hide-label></g-search-box>), and at the top of /search/<query> results with value set to the decoded query and size=\"regular\" (<g-search-box value=\"water lilies\" size=\"regular\"></g-search-box>). Don't add it to other pages: the header already has a compact search. Fetches nothing.",
+  "role": "leaf",
+  "props": [
+    { "name": "value", "type": "string", "required": false, "description": "Prefilled query: on /search/<query> the decoded segment, e.g. \"water lilies\" (%20 and + become spaces). Omit elsewhere." },
+    { "name": "placeholder", "type": "string", "required": false, "description": "Default \"Search artworks, artists, subjects…\"." },
+    { "name": "size", "type": "string", "required": false, "description": "large (default, 56px, serif input; use in the home hero) or regular (44px, sans input; use on both search pages, /search/ and /search/<query>)." },
+    { "name": "hide-label", "type": "boolean", "required": false, "description": "Present: the 'Search the collections' label is kept for screen readers only. Use it on the bare /search/ page, where the g-page-section heading already says the same; omit elsewhere." }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "grid gap-2 w-full max-w-[720px]",
+    "palette": ["#fffdf9", "#e0d9cd", "#1d1b18", "#6b645a", "#7d2a26", "#5f1f1c", "#a3321f"],
+    "notes": "form role=search with a visible small-caps 'Search the collections' label (--soft; screen-reader only with hide-label). A dark hero can recolour the label, focus ring and empty-query hint with --search-label, --search-ring and --search-hint. Paper input with a 1px rule border, a magnifier icon, and an oxblood border plus ring on focus-within. Large: Newsreader 20px, 56px tall; regular: Instrument Sans 16px, 44px. Solid oxblood .btn 'Search' that shows a spinner and 'Searching…' while navigating. Empty submit shows a polite hint instead of navigating. Full width up to 720px; stays one row on phones. Reduced motion stops the spinner and transitions."
+  },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<form role=search><label class=label>Search the collections</label><div class=row><div class=field><svg icon/><input type=search value={value} placeholder={placeholder}></div><button class=btn>Search</button></div><p class=hint role=status></p></form> — submit: trim, ignore empty, location.assign('/search/' + encodeURIComponent(q))"
+}

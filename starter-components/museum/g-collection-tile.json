@@ -1,0 +1,21 @@
+{
+  "prompt": "One museum collection (department) as a tile with a real cover work, linking to its collection page.",
+  "id": "g-collection-tile",
+  "shortDesc": "One collection (museum department) as a tile: a real representative work framed uncropped on a 4:3 mat, the collection name and the museum, linking to /collections/<collection-id>. g-collection-list renders these for you; write one by hand only for a few hand-picked collections inside g-grid, copying values from a ListDepartments entry: collection-id=\"met-11\" or \"aic-PC-10\", name=\"European Paintings\", museum=\"The Met\" or \"Art Institute of Chicago\" (optional, derived from the id prefix), image-url = coverImageUrl, which starts with /__art/ (optional; never a generated /images/ URL, without it the tile is typographic).",
+  "role": "leaf",
+  "props": [
+    { "name": "collection-id", "type": "string", "required": true, "description": "Department id from ListDepartments, e.g. met-11 or aic-PC-10. The tile links to /collections/<collection-id>." },
+    { "name": "name", "type": "string", "required": true, "description": "Collection name, e.g. \"European Paintings\"." },
+    { "name": "museum", "type": "string", "required": false, "description": "\"Art Institute of Chicago\" or \"The Met\". Defaults from the id prefix (aic-/met-)." },
+    { "name": "image-url", "type": "string", "required": false, "description": "coverImageUrl from ListDepartments (/__art/…). Anything that isn't a /__art/ URL is ignored. Without it the mat shows the name typographically." }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "flex flex-col h-full no-underline; mat: aspect-[4/3] grid place-items-center bg-stone-200 rounded-sm; caption: grid grid-cols-[1fr_auto] gap-x-3 pt-3",
+    "palette": ["#ebe6dc", "#1d1b18", "#6b645a", "#7d2a26", "#a8844a"],
+    "notes": "VITRINE kit. The cover sits uncropped (object-fit contain, 7% padding, soft drop-shadow) on a --mat 4:3 box, lazy-loaded and faded in; the mat pulses gently while it loads. No image or a failed image shows the name in italic Newsreader --soft (with a gilt hairline) or the honest 'Image unavailable' placeholder, never a generated picture. Name in Newsreader 500 20px, museum in the .label small caps. Hover/focus-visible: 1px gilt inset on the mat, oxblood underline on the name, a -2px lift and an oxblood '→' sliding in 4px; static under prefers-reduced-motion. Fills its grid cell height (:host height 100%)."
+  },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<a class=tile href=/collections/{collection-id}><div class=mat aria-hidden=true style=aspect-ratio:4/3><img src={image-url} alt=\"A work from the {name} collection\" loading=lazy decoding=async> | <div class=type><i>{name}</i><span class=label>{museum}</span></div></div><div class=cap><span class=name>{name}</span><span class=arrow>→</span><span class=label>{museum}</span></div></a> (without collection-id: a <div class=tile> and no aria-hidden on the mat, so the cover keeps its alt)"
+}

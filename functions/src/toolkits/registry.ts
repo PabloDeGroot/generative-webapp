@@ -3,11 +3,12 @@ import { dictionaryToolkit } from "./dictionary";
 import { demoToolkit } from "./demo";
 import { travelToolkit } from "./travel";
 import { communityToolkit } from "./community";
+import { museumToolkit } from "./museum";
 
 // Every site domain the app can serve. The SvelteKit server picks one per request from the
 // hostname (travel.groots.es -> "travel") and sends it to mcp as X-Toolkit-Id; keep the id list
 // in sync with KNOWN_TOOLKIT_IDS in src/lib/toolkit.ts.
-const TOOLKITS: DomainToolkit[] = [dictionaryToolkit, travelToolkit, communityToolkit, demoToolkit];
+const TOOLKITS: DomainToolkit[] = [dictionaryToolkit, travelToolkit, communityToolkit, museumToolkit, demoToolkit];
 
 const byId = new Map(TOOLKITS.map((t) => [t.id, t]));
 

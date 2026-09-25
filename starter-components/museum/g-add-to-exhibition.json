@@ -1,0 +1,55 @@
+{
+  "prompt": "'Add to exhibition' control for one artwork: a ghost button that opens an inline panel to pick one of the signed-in user's exhibitions (or name a new one), add an optional curator's note, and save.",
+  "id": "g-add-to-exhibition",
+  "shortDesc": "'Add to exhibition' button for one artwork: it opens an inline panel listing the signed-in user's exhibitions (with covers and work counts), an optional curator's note, or lets them name a new exhibition, then saves and confirms with a link to it. Already built into g-artwork-view, so you rarely place it; use it only under a hand-picked g-artwork-card, paired with it in one plain <div> that is the grid cell, e.g. <g-grid min-width=\"220\"><div style=\"display:grid;gap:8px;align-content:start\"><g-artwork-card artwork-id=\"met-436535\" …></g-artwork-card><g-add-to-exhibition artwork-id=\"met-436535\"></g-add-to-exhibition></div>…</g-grid>. Its artwork-id must equal the card's artwork-id (aic-<n> or met-<n>, copied from the tool's id), and it is never a direct child of g-grid (it would become its own cell, detached from its card). Fetches nothing until opened; signed-out visitors see a sign-in hint in the panel, so it is safe on public pages. An invalid artwork-id renders nothing.",
+  "role": "leaf",
+  "props": [
+    {
+      "name": "artwork-id",
+      "type": "string",
+      "required": true,
+      "description": "Artwork to add: aic-<n> or met-<n>, e.g. aic-16568 or met-436535. Changing it resets the control."
+    }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "grid gap-2.5; toggle: inline-flex w-full min-h-[44px] border border-red-900 text-red-900 rounded-sm; panel: bg-stone-50 border border-stone-200 rounded-sm p-4; options: max-h-60 overflow-y-auto bg-white border border-stone-200",
+    "palette": [
+      "#f6f3ee",
+      "#fffdf9",
+      "#ebe6dc",
+      "#e0d9cd",
+      "#1d1b18",
+      "#6b645a",
+      "#7d2a26",
+      "#5f1f1c",
+      "#f3e4e1",
+      "#a8844a",
+      "#a3321f",
+      "#2f6b45"
+    ],
+    "notes": "VITRINE kit. Full-width .btn.ghost '＋ Add to exhibition' (becomes 'Add to another exhibition' after a save) with aria-expanded/aria-controls, opening an inline disclosure panel (not a modal) on --wall with a 1px --rule border and 16px padding. Inside: a fieldset of native radio rows (oxblood accent-color, 56px rows, max-height 240px scrolling on --paper): a 40px .mat cover of the exhibition's first real work (or an empty mat), the title in italic Newsreader and 'n works' in tabular --soft; the selected row is --oxblood-tint with a 2px oxblood inset edge; exhibitions this work was just added to are marked '✓ Added' and disabled (only the radio and cover dim; the text keeps full contrast). The last row, 'New exhibition…' (gilt-framed '+'), reveals a title input (max 120). A 'Note (optional)' serif textarea (3 rows, max 1000) with a tabular counter. Actions: 'Add' / 'Create and add' / 'Try adding again' (.btn, disabled until a choice, 'Adding…' with aria-busy) and 'Cancel'. Loading shows three skeleton rows; no exhibitions preselects 'New exhibition…' with a hint; load errors show a retry. Success is a role=status line '✓ Added to <italic linked title> · 13 works'. Choosing an exhibition that already holds the work counts as success ('✓ Already in <title>'). Errors (the 60-work limit, anything else) are role=alert text in --error and keep the choice and note. Esc and Cancel close and return focus to the button; while a save is in flight Cancel is disabled and Esc and the toggle are ignored. Covers load lazily, fade in, and on error leave an empty mat (never a generated image). Buttons stretch full width on narrow phones."
+  },
+  "dependencies": [],
+  "interactions": [
+    {
+      "trigger": "Panel opened for the first time (never on mount)",
+      "method": "POST",
+      "route": "/exhibitions",
+      "bodyShape": "READS.exhibitions(): { intent: 'list my exhibitions (ListExhibitions)', outputFormat: { exhibitions: [{ id, title, subtitle, artworkCount, coverImageUrl, updatedAt }] } } — byte-identical to g-exhibition-list's request"
+    },
+    {
+      "trigger": "Save with 'New exhibition…' chosen (first write; its id is kept so a failed add retries without re-creating)",
+      "method": "POST",
+      "route": "/exhibitions/new",
+      "bodyShape": "WRITES.create(title): { intent: 'create an exhibition (CreateExhibition)', title, outputFormat: { id: 'string', title: 'string' } }"
+    },
+    {
+      "trigger": "Save (Add), or the second step after creating",
+      "method": "POST",
+      "route": "/exhibitions/{exhibitionId}",
+      "bodyShape": "WRITES.add(exhibitionId, artworkId, note): { intent: 'add an artwork to my exhibition (AddToExhibition)', exhibitionId, artworkId, note?, outputFormat: { exhibitionId: 'string', artworkCount: 'number' } }; on success dispatches 'g-exhibition-change' (bubbles, composed, detail { exhibitionId, artworkId, artworkCount })"
+    }
+  ],
+  "markupSketch": "<div class=box><button class='btn ghost toggle' aria-expanded=false aria-controls=panel>＋ Add to exhibition</button><div role=status><p>✓ Added to <a href=/exhibitions/{id}><i>{title}</i></a> · 13 works</p></div><div id=panel class=panel hidden><form><fieldset><legend>Choose an exhibition</legend><div class=opts><label class=opt><input type=radio name=ex value={id}><span class=mat><img src={coverImageUrl} alt='' loading=lazy></span><span><i>{title}</i><small>{n} works</small></span></label>…<label class=opt><input type=radio value=__new><span>+</span><span>New exhibition…</span></label></div></fieldset><div hidden><label>Title of the new exhibition</label><input maxlength=120></div><label>Note (optional)</label><span>0 / 1000</span><textarea rows=3 maxlength=1000></textarea><p role=alert class=error></p><button type=submit class=btn>Add</button><button type=button class='btn ghost'>Cancel</button></form></div></div>"
+}

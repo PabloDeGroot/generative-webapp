@@ -1,0 +1,24 @@
+{
+  "prompt": "One of the signed-in user's exhibitions as a cover card: the opening work framed on a mat in front of two offset gilt frames, then the title, subtitle and a 'n works · updated …' line, linking to the exhibition page.",
+  "id": "g-exhibition-card",
+  "shortDesc": "One of the user's exhibitions as a cover card: the first work framed on a mat, then the title, subtitle and 'n works · updated …', linking to /exhibitions/<exhibition-id>. g-exhibition-list renders these; don't place it directly. If you ever must, copy fields from a ListExhibitions item: exhibition-id=\"x7Qp2\", title and subtitle exactly as returned (already escaped), artwork-count=\"9\", image-url = coverImageUrl (starts with /__art/; omit when null), updated-at = updatedAt (ISO, e.g. \"2026-09-20T10:00:00Z\"). Never pass a generated /images/ URL: it is ignored.",
+  "role": "leaf",
+  "props": [
+    { "name": "exhibition-id", "type": "string", "required": true, "description": "Exhibition id from ListExhibitions, e.g. x7Qp2. The card links to /exhibitions/<exhibition-id>; without it the card is shown unlinked." },
+    { "name": "title", "type": "string", "required": true, "description": "Exhibition title, passed exactly as the tool returned it (already escaped; decoded once and re-escaped). Newsreader 22px, clamped to 2 lines. Moved off the host on connect so it never shows as a native tooltip." },
+    { "name": "subtitle", "type": "string", "required": false, "description": "Subtitle, 15px --soft, clamped to 2 lines." },
+    { "name": "artwork-count", "type": "number", "required": false, "description": "Number of works, e.g. 9. Shown as '9 works'; 0 shows the dashed 'No works yet' frame." },
+    { "name": "image-url", "type": "string", "required": false, "description": "coverImageUrl (/__art/…); omit when null. Anything not starting with /__art/ is ignored: with artwork-count above 0 the mat then shows the neutral 'Image unavailable' placeholder; the dashed 'No works yet' frame shows only when artwork-count is 0 (or when neither a count nor a cover is given)." },
+    { "name": "updated-at", "type": "string", "required": false, "description": "ISO date of the last change, shown relatively: 'updated 3 days ago'." }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "flex flex-col h-full no-underline; hang: relative mt-3 mr-3 with two gilt 1px frames offset 6px and 12px up-right behind; mat: relative grid place-items-center aspect-[4/3] bg-stone-200 rounded-sm overflow-hidden; body: grid gap-1 pt-3.5",
+    "palette": ["#ebe6dc", "#fffdf9", "#1d1b18", "#6b645a", "#7d2a26", "#a8844a", "#e0d9cd"],
+    "notes": "VITRINE kit. 4:3 --mat box, cover object-fit: contain with 7% padding and a soft drop-shadow (never cropped), fading in over 250ms; the mat pulses as a skeleton until it loads, and a failed image shows the neutral placeholder (italic title + 'IMAGE UNAVAILABLE'). Two gilt hairline frames sit behind the mat (offset 6px/12px up-right), spreading slightly on hover. Empty exhibitions (artwork-count 0, or no count and no cover): --paper mat with a dashed gilt frame, 'No works yet' in italic serif --soft and a small label. Title Newsreader 500 22px (upright: it is the curator's title, not an artwork), subtitle 15px --soft 2-line clamp, meta 13px tabular --soft with a --rule middot. Hover/focus: 1px gilt inset on the mat, oxblood title underline, -2px lift (static under reduced motion); focus ring 2px oxblood around the mat."
+  },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<article><a class=card href=/exhibitions/{exhibition-id}><div class=hang><div class=mat style=aspect-ratio:4/3><img src={image-url} alt=\"Opening work of the exhibition {title}\" loading=lazy decoding=async></div></div><div class=body><h3 class=ttl>{title}</h3><p class=sub>{subtitle}</p><p class=\"meta num\">{artwork-count} works · <time datetime={updated-at}>updated 3 days ago</time></p></div></a></article>",
+  "usageExample": "<g-exhibition-card exhibition-id=\"x7Qp2\" title=\"Blue hours\" subtitle=\"Twilight across five centuries\" artwork-count=\"9\" image-url=\"/__art/met/ep/web-large/DT1567.jpg\" updated-at=\"2026-09-20T10:00:00Z\"></g-exhibition-card>"
+}

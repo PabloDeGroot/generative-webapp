@@ -1,0 +1,106 @@
+{
+  "prompt": "Vitrine editorial hero for the museum site: the page h1 beside one real artwork it fetches itself, on a wall tinted by that artwork.",
+  "id": "g-feature-hero",
+  "shortDesc": "Big editorial hero that renders the PAGE H1 beside ONE REAL ARTWORK it fetches itself (never pass an image). Use it first in <main> on / (<g-feature-hero intro=\"…\"><g-search-box></g-search-box></g-feature-hero>), /highlights (no source), /highlights/<theme> (theme=\"the sea\": the decoded URL segment as-is) and /collections/<collection id> (collection=\"met-11\" or collection=\"aic-PC-10\"). Choose the source with at most ONE attribute: none (museum highlights), theme, collection, or artwork-id=\"aic-27992\". heading and kicker are optional: without them it shows a fitting h1 and kicker from the data (for a collection its real name and 'Collection · The Met'), so don't guess names. Slot a g-search-box and/or g-theme-chips inside. It shares one request with a g-artwork-grid of the same source on the page (limit, pick, layout and texts don't affect sharing); its featured work may also appear in that grid, which is intended. It is the page's only h1: don't add a level=\"1\" g-page-section, and never use it on /artwork/<id>, /artist/<name> or /exhibitions/<id> (those page components render their own h1). artwork-id is for featuring one chosen work on an editorial page such as / or a highlights page.",
+  "role": "leaf",
+  "props": [
+    {
+      "name": "heading",
+      "type": "string",
+      "required": false,
+      "description": "Big heading (the page h1). Defaults: 'Highlights of the collections', the theme in sentence case ('The sea'), the collection's real name, or the artwork title. Only write it when you have a better editorial title; never guess a collection name."
+    },
+    {
+      "name": "kicker",
+      "type": "string",
+      "required": false,
+      "description": "Small-caps line above the heading. Defaults: 'Highlights' ('Search results' when a theme fell back to search results), 'Collection · <museum>', or the artwork's museum. kicker=\"\" hides it."
+    },
+    {
+      "name": "intro",
+      "type": "string",
+      "required": false,
+      "description": "One or two sentences of plain text under the heading."
+    },
+    {
+      "name": "theme",
+      "type": "string",
+      "required": false,
+      "description": "Feature a themed highlight: the decoded /highlights/<theme> segment, e.g. \"impressionism\" or \"the sea\". A theme with no highlights falls back to search results for it, and its default kicker becomes 'Search results'."
+    },
+    {
+      "name": "collection",
+      "type": "string",
+      "required": false,
+      "description": "Feature a work from this collection: the id from /collections/<id>, e.g. met-11 or aic-PC-10."
+    },
+    {
+      "name": "artwork-id",
+      "type": "string",
+      "required": false,
+      "description": "Feature this exact work on an editorial page (/ or a highlights page), e.g. aic-27992 or met-436535. Never on /artwork/<id>, where g-artwork-view renders the h1."
+    },
+    {
+      "name": "pick",
+      "type": "string",
+      "required": false,
+      "description": "first (default) or daily (rotates once a day through the fetched works)."
+    },
+    {
+      "name": "tone",
+      "type": "string",
+      "required": false,
+      "description": "dark (default: a night wall tinted by the artwork) or light (a pale tinted wall)."
+    }
+  ],
+  "slots": [
+    {
+      "name": "",
+      "description": "Under the intro.",
+      "accepts": "g-search-box, g-theme-chips, a links"
+    }
+  ],
+  "styling": {
+    "tailwindClasses": "block w-full min-h-[min(76vh,700px)] grid md:grid-cols-[5fr_7fr] gap-7 md:gap-12 max-w-[1240px] mx-auto px-4 py-7 md:px-8 md:py-12",
+    "palette": [
+      "#15130f",
+      "#efe9df",
+      "#f6f3ee",
+      "#1d1b18",
+      "#6b645a",
+      "#7d2a26",
+      "#f3e4e1",
+      "#a8844a",
+      "#ebe6dc"
+    ],
+    "notes": "Full-bleed band whose background is --art-tint: the loaded artwork drawn into a 12x12 canvas, averaged, saturation clamped to 0.25 and lightness pinned to 0.14 (dark) or 0.93 (light); falls back to --night / --wall, with a 400ms colour transition. Text column (5fr, vertically centred): a gilt hairline plus kicker (a pale rose on dark, oxblood on light), h1 in Newsreader 500 clamp(40px,6vw,64px)/1.05 with text-wrap balance (italic only when it is the artwork title), intro in Newsreader 19px in the soft ink, then the slot 28px below. Artwork column (7fr): one link to /artwork/<id> around a figure: the uncropped image (object-fit contain, drop shadow, eager + fetchpriority high, with a srcset adding largeImageUrl (1686w) when the artwork source provides it, fading in over 250ms) in a fixed-height stage (min(62vh,620px); clamp(240px,50vh,480px) on phones, where it stacks above the text), then a wall-label figcaption: a short gilt rule, italic 17px title, 'Artist, date · Museum' in 12px. Hover/focus underlines the title and lifts the image 2px. Text is --night-ink on dark, --ink on light; the focus ring is oxblood on light and oxblood-tint on dark. Loading: a mat-tinted 4:5 frame pulsing in the stage, caption bars, and a two-line text skeleton in the h1 when its text comes from the data. Error or no usable work: a text-only band that still carries the h1 (error adds a short note with a link to /highlights or /collections); never a fallback picture. A failed image becomes the typographic placeholder. Sets --search-label on the band so a slotted g-search-box stays legible on dark. Reduced motion turns off pulses, fades, lifts and the tint transition."
+  },
+  "dependencies": [],
+  "interactions": [
+    {
+      "trigger": "mount with artwork-id (valid aic-/met- id only)",
+      "method": "POST",
+      "route": "/artwork/<id>",
+      "bodyShape": "READS.artwork(id) from the shared DATA block (GetArtwork); reads payload(res,'title') as the work"
+    },
+    {
+      "trigger": "mount with collection",
+      "method": "POST",
+      "route": "/collections/<id>",
+      "bodyShape": "READS.collection(id) (GetDepartment, limit 24); reads artworks, name, museum"
+    },
+    {
+      "trigger": "mount with theme",
+      "method": "POST",
+      "route": "/highlights/<theme>",
+      "bodyShape": "READS.highlights(theme) (GetHighlights, limit 12); if it fails or has no work with an /__art imageUrl, falls back to READS.search(theme) → POST /search/<theme> (SearchArtworks, museum both, limit 24)"
+    },
+    {
+      "trigger": "mount with no source",
+      "method": "POST",
+      "route": "/highlights",
+      "bodyShape": "READS.highlights() (GetHighlights, limit 12, no theme)"
+    }
+  ],
+  "markupSketch": "<section class=band style=--art-tint aria-labelledby=h><div class=wrap><div class=text><p class=kicker>{kicker}</p><h1 id=h>{heading}</h1><p class=intro>{intro}</p><div class=slot><slot></slot></div></div><a class=work href=/artwork/{id}><figure><div class=stage><img src={imageUrl /__art} alt={imageAlt} loading=eager fetchpriority=high></div><figcaption><i>{title}</i> {artist}, {date} · {museum}</figcaption></figure></a></div></section>"
+}

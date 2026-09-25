@@ -1,0 +1,21 @@
+{
+  "prompt": "Vitrine theme chips: a row of pill links for exploring the museum collections by subject.",
+  "id": "g-theme-chips",
+  "shortDesc": "Row of pill links for exploring by theme; each goes to /highlights/<theme> (the label as written, case kept), or to /search/<theme> with base=\"search\" (use that on search pages). Themes are free text: any short subject works, and a theme without museum highlights falls back to search results, so no chip leads to an empty page. Reliable themes: Impressionism, Post-Impressionism, Japanese prints, Ancient Egypt, Arms and armor, Portraits, Still life, Landscapes, Sculpture, Islamic art, Photography, The sea, Gardens, Animals, Mythology. Use it on the home, highlights and search pages (e.g. slotted inside g-feature-hero, or inside a g-page-section). Format: themes=\"Impressionism, Japanese prints, The sea\" (comma-separated), current=\"the sea\" (the URL segment, decoded or not), base=\"search\", include-all (boolean, no value). Fetches nothing.",
+  "role": "leaf",
+  "props": [
+    { "name": "themes", "type": "string", "required": true, "description": "Comma-separated themes, e.g. \"Impressionism, Japanese prints, Ancient Egypt, The sea\". Trimmed, de-duplicated case-insensitively, capped at 14." },
+    { "name": "current", "type": "string", "required": false, "description": "Theme being shown: the decoded /highlights/<theme> (or /search/<query>) segment as-is, e.g. \"the sea\" (percent-escapes like \"the%20sea\" are decoded; matched case-insensitively, marked aria-current). On /highlights itself write current=\"all\" to mark the 'All highlights' pill." },
+    { "name": "base", "type": "string", "required": false, "description": "highlights (default: chips link to /highlights/<theme>) or search (chips link to /search/<theme>)." },
+    { "name": "include-all", "type": "boolean", "required": false, "description": "Boolean attribute (write include-all with no value): prepends an 'All highlights' pill linking to /highlights." }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "",
+    "palette": ["#fffdf9", "#e0d9cd", "#1d1b18", "#7d2a26", "#f3e4e1", "#a8844a"],
+    "notes": "Vitrine kit. Pills are --paper (#fffdf9) with a 1px --rule (#e0d9cd) border, 999px radius, 8px 16px padding, Instrument Sans 500 14px, 44px hit target. Hover: oxblood (#7d2a26) border and text. Current pill: --oxblood-tint (#f3e4e1) with oxblood text, aria-current=\"page\". 'All highlights' pill has a small gilt dot. Wraps from 640px; below that a single edge-faded row scrolling horizontally with scroll-snap, the current chip scrolled into view. Focus ring 2px oxblood, 2px offset; transitions off under prefers-reduced-motion. Renders nothing when there are no themes."
+  },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<nav aria-label=\"Explore by theme\"><ul class=chips><li><a class=chip href=/highlights>All highlights</a></li><li><a class=chip href=/highlights/Impressionism aria-current=page>Impressionism</a></li><li><a class=chip href=/highlights/The%20sea>The sea</a></li></ul></nav>"
+}

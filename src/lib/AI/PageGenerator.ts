@@ -248,6 +248,10 @@ async function runMcpToolLoop(input: {
                     try {
                         const response = await mcp.callTool({ name: descriptor.name, arguments: args });
                         const parsed = parseToolJson(response.content);
+                        // A tool that throws comes back as a normal result flagged isError, not as an exception.
+                        if (response.isError) {
+                            throw new Error(typeof parsed === 'string' && parsed ? parsed : `${descriptor.name} failed.`);
+                        }
                         result.toolInvocations.push({ name: descriptor.name, args, result: parsed, readOnly: descriptor.annotations?.readOnlyHint === true, failed: false });
                         const toolDuration = toolStop({
                             ok: true,
@@ -730,7 +734,19 @@ export async function HandleAction(request: Request, idToken?: string, userId?: 
         idToken
     });
 
-    const json = parseActionJson(finalText, toolInvocations);
+    let json = parseActionJson(finalText, toolInvocations);
+    // The runner's text is the model's account of what happened; trust the tool calls instead. A write
+    // that failed with no write succeeding, or a run where every tool failed, is an error even if the
+    // model wrote a plausible answer.
+    const failedWrite = [...toolInvocations].reverse().find((t) => !t.readOnly && t.failed);
+    const anyWriteSucceeded = toolInvocations.some((t) => !t.readOnly && !t.failed);
+    const allFailed = toolInvocations.length > 0 && toolInvocations.every((t) => t.failed);
+    const toolFailure = (failedWrite && !anyWriteSucceeded) ? failedWrite : allFailed ? toolInvocations[toolInvocations.length - 1] : undefined;
+    if (toolFailure) {
+        json = { ok: false, message: String((toolFailure.result as { error?: unknown })?.error ?? `${toolFailure.name} failed.`) };
+    } else {
+        json = repairCopiedStrings(json, toolInvocations);
+    }
     const ok = !(json && typeof json === 'object' && (json as any).ok === false);
 
     // A successful write retires every cached read of this toolkit; a run that only used
@@ -753,7 +769,63 @@ export async function HandleAction(request: Request, idToken?: string, userId?: 
         cache: cacheStatus
     });
 
-    return new Response(JSON.stringify(json), { status: 200, headers: actionHeaders(cacheStatus) });
+    return new Response(JSON.stringify(json), { status: toolFailure ? 422 : 200, headers: actionHeaders(cacheStatus) });
+}
+
+// The runner model re-types ids and URLs from tool results into its answer and sometimes drops or
+// swaps a character ("c8ee825f-…-5d692d9a5d" for "…-5d692d9a5d8a"), which breaks links, images and
+// follow-up writes. Identifier-like strings in the answer that don't appear in any tool result are
+// replaced by the one tool string they are a near-copy of; anything ambiguous is left alone.
+const COPYABLE = /^[^\s]{12,300}$/;
+
+function repairCopiedStrings(value: unknown, toolInvocations: ToolInvocation[]): unknown {
+    const known = new Set<string>();
+    const collect = (v: unknown) => {
+        if (typeof v === 'string') { if (COPYABLE.test(v)) known.add(v); }
+        else if (Array.isArray(v)) v.forEach(collect);
+        else if (v && typeof v === 'object') Object.values(v).forEach(collect);
+    };
+    toolInvocations.filter((t) => !t.failed).forEach((t) => collect(t.result));
+    if (!known.size) return value;
+    const candidates = [...known];
+
+    const repair = (text: string): string => {
+        if (!COPYABLE.test(text) || known.has(text)) return text;
+        const budget = Math.max(2, Math.floor(text.length * 0.06));
+        let best: string | undefined;
+        let bestDistance = budget + 1;
+        let tie = false;
+        for (const c of candidates) {
+            if (Math.abs(c.length - text.length) > budget) continue;
+            const d = boundedEditDistance(text, c, budget);
+            if (d < bestDistance) { best = c; bestDistance = d; tie = false; }
+            else if (d === bestDistance) tie = true;
+        }
+        return best && !tie ? best : text;
+    };
+    const walk = (v: unknown): unknown => {
+        if (typeof v === 'string') return repair(v);
+        if (Array.isArray(v)) return v.map(walk);
+        if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+        return v;
+    };
+    return walk(value);
+}
+
+/** Levenshtein distance, or budget + 1 as soon as it must exceed the budget. */
+function boundedEditDistance(a: string, b: string, budget: number): number {
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+        const row = [i];
+        let rowMin = i;
+        for (let j = 1; j <= b.length; j++) {
+            row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            if (row[j] < rowMin) rowMin = row[j];
+        }
+        if (rowMin > budget) return budget + 1;
+        prev = row;
+    }
+    return Math.min(prev[b.length], budget + 1);
 }
 
 function parseActionJson(

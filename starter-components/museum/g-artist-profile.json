@@ -1,0 +1,25 @@
+{
+  "prompt": "Artist page header for /artist/<name>: renders the page h1 and a real portrait or artwork beside a Wikipedia biography.",
+  "id": "g-artist-profile",
+  "shortDesc": "The /artist/<name> page header from just the name, e.g. <g-artist-profile artist=\"Claude Monet\"></g-artist-profile> (artist = the decoded URL segment as-is: %20 and + become spaces). It renders the page h1 (the artist's name) itself, so don't add a level=\"1\" section. It shows the real portrait (Wikipedia), or one of the artist's own works clearly captioned and linked, or a monogram (never a generated image), then a short description, life dates, the Wikipedia biography clamped with 'Read more', and an attribution link. Put it first in <main>, followed by <g-page-section heading=\"Works\"><g-artwork-grid artist=\"<same name>\"></g-artwork-grid></g-page-section> (one shared request). Unknown names show a not-found message with a search link by themselves.",
+  "role": "leaf",
+  "props": [
+    { "name": "artist", "type": "string", "required": true, "description": "Artist name, the decoded /artist/<name> segment as-is, e.g. \"Claude Monet\" or \"Katsushika Hokusai\". Use exactly the same value as the g-artwork-grid artist= below it so they share one request." }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "block bg-white border-b border-stone-200 px-4 py-7 md:px-8 md:py-12 grid md:grid-cols-[280px_1fr] gap-7 md:gap-10 max-w-[1240px] mx-auto",
+    "palette": ["#fffdf9", "#ebe6dc", "#e0d9cd", "#1d1b18", "#6b645a", "#7d2a26", "#a8844a", "#7a5c2a"],
+    "notes": "VITRINE kit. A --paper band with a hairline bottom rule. Left: a 3:4 frame with a 1px --rule border (portrait object-fit cover; fallback artwork contained on a --mat with 7% padding and a soft drop-shadow; monogram in Newsreader 64px --gilt-ink inside a gilt inset hairline). Right: an oxblood 'ARTIST' kicker, an h1 in Newsreader 500 clamp(40px,6vw,60px), the description in 18px --soft, 'LIFE 1840–1926' in tabular nums, a 48px gilt rule, then the biography in Newsreader 18px/1.65 at 65ch, clamped to 7 lines with a fade and an oxblood 'Read more' button, and a 'Biography from Wikipedia ↗ · Text CC BY-SA 4.0' label line. On phones it stacks with the image first, 260px wide."
+  },
+  "dependencies": [],
+  "interactions": [
+    {
+      "trigger": "Mount or artist attribute change (shared with g-artwork-grid artist=, byte-identical body from the kit's READS.artist)",
+      "method": "POST",
+      "route": "/artist/{encodeURIComponent(artist)}",
+      "bodyShape": "{ intent: 'get artist profile and works (GetArtist)', name, outputFormat: { name, description, bio, born: 'number|null', died: 'number|null', portraitUrl: '/__art URL|null', wikipediaUrl: 'string|null', artworks: [{ id, title, artist, date, museum, imageUrl, thumbUrl, imageAlt }] } }"
+    }
+  ],
+  "markupSketch": "<section class=band><div class=inner><figure><div class='frame portrait'><img alt='Portrait of {name}' loading=eager fetchpriority=high></div><figcaption class=label>Portrait · Wikimedia Commons</figcaption></figure><div class=text><span class=kicker>Artist</span><h1>{name}</h1><p class=desc>{description}</p><p class=life><span class=label>Life</span> <span class=num>{born}–{died}</span></p><hr class=rule><div class='bio clamped' id=bio><p>{bio paragraph}</p>…</div><button class=more aria-expanded=false aria-controls=bio>Read more</button><p class=src><a class=label href={wikipediaUrl} target=_blank rel=noopener>Biography from Wikipedia ↗</a> <span class=label>Text CC BY-SA 4.0</span></p></div></div></section>"
+}

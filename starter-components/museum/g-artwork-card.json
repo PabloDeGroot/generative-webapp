@@ -1,0 +1,78 @@
+{
+  "prompt": "One real artwork as a framed card for grids and rails: the uncropped image on a mat, then a wall-label caption.",
+  "id": "g-artwork-card",
+  "shortDesc": "One artwork as a framed card: the uncropped image on a mat, then the italic title, the artist, and 'date · museum'; the whole card links to /artwork/<artwork-id>. g-artwork-grid renders these for you, so you almost never need it. Write one by hand only for a few hand-picked works inside g-grid, copying fields from an artwork object returned by the museum tools (SearchArtworks, GetHighlights, GetDepartment, GetArtist artworks, GetArtwork moreByArtist): artwork-id=\"aic-16568\" (or \"met-436535\"), artwork-title = title, artist, date=\"1906\", museum=\"Art Institute of Chicago\" or \"The Met\", image-url = thumbUrl (starts with /__art/), image-large-url = imageUrl, image-alt = imageAlt. Never pass a generated /images/ URL: it is ignored and a typographic placeholder shows.",
+  "role": "leaf",
+  "props": [
+    {
+      "name": "artwork-id",
+      "type": "string",
+      "required": true,
+      "description": "aic-<n> or met-<n>, e.g. aic-16568. The card links to /artwork/<artwork-id>; an invalid id shows the card unlinked."
+    },
+    {
+      "name": "artwork-title",
+      "type": "string",
+      "required": true,
+      "description": "Artwork title (the tool's title field), shown in italics (wall-label style), clamped to 2 lines. Named artwork-title because the HTML title attribute would add a hover tooltip; a title attribute is still accepted and moved here."
+    },
+    {
+      "name": "artist",
+      "type": "string",
+      "required": false,
+      "description": "Artist display name, e.g. Claude Monet."
+    },
+    {
+      "name": "date",
+      "type": "string",
+      "required": false,
+      "description": "Display date, e.g. \"1906\" or \"c. 1760–70\"."
+    },
+    {
+      "name": "museum",
+      "type": "string",
+      "required": false,
+      "description": "\"Art Institute of Chicago\" or \"The Met\"."
+    },
+    {
+      "name": "image-url",
+      "type": "string",
+      "required": false,
+      "description": "thumbUrl from the tool (/__art/…, ~400px). Anything not starting with /__art/ is ignored and the placeholder shows."
+    },
+    {
+      "name": "image-large-url",
+      "type": "string",
+      "required": false,
+      "description": "imageUrl from the tool (/__art/…, ~843px), used in the srcset for wide or high-DPI screens."
+    },
+    {
+      "name": "image-alt",
+      "type": "string",
+      "required": false,
+      "description": "imageAlt from the tool. Falls back to '<title> by <artist>'."
+    },
+    {
+      "name": "size",
+      "type": "string",
+      "required": false,
+      "description": "normal (default) or small (for rails and sidebars: 15px title)."
+    }
+  ],
+  "slots": [],
+  "styling": {
+    "tailwindClasses": "flex flex-col h-full no-underline; mat: relative grid place-items-center aspect-[4/5] bg-stone-200 rounded-sm overflow-hidden; caption: grid gap-0.5 pt-3",
+    "palette": [
+      "#ebe6dc",
+      "#1d1b18",
+      "#6b645a",
+      "#7d2a26",
+      "#a8844a",
+      "#e0d9cd"
+    ],
+    "notes": "VITRINE kit. 4:5 --mat box, image absolutely positioned (inset 0) with object-fit: contain and 7% padding and a soft drop-shadow (never cropped), fading in over 250ms; the mat pulses as a skeleton until it loads. Caption: Newsreader italic 500 title 18px (15px small), Instrument Sans 500 14px artist, 12px --soft tabular 'date · museum'. Hover/focus: 1px gilt inset on the mat, oxblood title underline, -2px lift (static under reduced motion); focus ring 2px oxblood around the mat. Failed or non-/__art images show the neutral placeholder (italic title + 'IMAGE UNAVAILABLE'), never a generated picture."
+  },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<article><a class=card href=/artwork/{artwork-id} aria-label=\"{artwork-title}, {artist}\"><figure><div class=mat style=aspect-ratio:4/5><img src={image-url} srcset=\"{image-url} 400w, {image-large-url} 843w\" alt={image-alt} loading=lazy decoding=async></div><figcaption><p class=t>{artwork-title}</p><p>{artist}</p><p class=meta>{date} · {museum}</p></figcaption></figure></a></article>"
+}

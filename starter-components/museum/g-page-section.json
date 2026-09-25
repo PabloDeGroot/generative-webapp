@@ -1,0 +1,86 @@
+{
+  "prompt": "Titled band that structures every Vitrine page: kicker, serif heading, optional intro, 'See all' link and primary button, then its children.",
+  "id": "g-page-section",
+  "shortDesc": "Titled band that structures every page: an oxblood small-caps kicker, a serif heading, an optional intro, an optional 'See all' link at the right, an optional primary button, then its children. Write level=\"1\" when its heading is the page title (search, /collections, /exhibitions and new-exhibition pages); pages that start with g-feature-hero, g-artwork-view, g-artist-profile or g-exhibition-view already have their h1, so keep the default level there. Alternate tone=\"paper\" with the default wall between consecutive sections (the hero counts as neither). If it contains a g-artwork-grid rail or more-by-artist-of list that turns out empty, the whole section hides, so give such a grid its own section and keep CTAs and other content in a separate section. Inside another component's slot (e.g. slot=\"aside\" of g-split) it drops its band padding and background; write level=\"3\" there when the main column already has h2 headings. Plain <p> children are styled as reading text, and with button-href a section works as a call-to-action with no children at all. Example: <g-page-section kicker=\"The museums' own picks\" heading=\"Highlights\" link-href=\"/highlights\" link-text=\"All highlights\" tone=\"paper\"><g-artwork-grid limit=\"8\"></g-artwork-grid></g-page-section>",
+  "role": "layout",
+  "props": [
+    {
+      "name": "kicker",
+      "type": "string",
+      "required": false,
+      "description": "Short line above the heading, e.g. \"The museums' own picks\"."
+    },
+    {
+      "name": "heading",
+      "type": "string",
+      "required": false,
+      "description": "Section heading, e.g. \"More by this artist\"."
+    },
+    {
+      "name": "intro",
+      "type": "string",
+      "required": false,
+      "description": "One or two plain sentences under the heading."
+    },
+    {
+      "name": "link-href",
+      "type": "string",
+      "required": false,
+      "description": "Optional quiet link at the right of the heading, a site path such as /highlights or /collections."
+    },
+    {
+      "name": "link-text",
+      "type": "string",
+      "required": false,
+      "description": "Text for that link. Default \"See all\"."
+    },
+    {
+      "name": "button-href",
+      "type": "string",
+      "required": false,
+      "description": "Optional primary button under the intro, a site path such as /exhibitions/new."
+    },
+    {
+      "name": "button-text",
+      "type": "string",
+      "required": false,
+      "description": "Button label. Required whenever button-href is set, e.g. \"Start an exhibition\"; without it no button is rendered."
+    },
+    {
+      "name": "level",
+      "type": "string",
+      "required": false,
+      "description": "Heading level: \"1\" renders the page h1 (44px), \"3\" an h3 (22px) for a section nested in g-split's aside under other h2s; omit it (or \"2\") for the usual h2. No other values."
+    },
+    {
+      "name": "tone",
+      "type": "string",
+      "required": false,
+      "description": "wall (default) or paper. Alternate them between consecutive sections."
+    }
+  ],
+  "slots": [
+    {
+      "name": "",
+      "description": "Section content (optional; the band collapses its body when empty). An empty child g-artwork-grid rail or more-by-artist-of list hides the whole section, including its header, button and other children, so give such a grid a section of its own.",
+      "accepts": "any kit components, or <p> paragraphs"
+    }
+  ],
+  "styling": {
+    "tailwindClasses": "block w-full bg-stone-50 grid gap-5 max-w-[1240px] mx-auto px-4 py-7 md:px-8 md:py-12",
+    "palette": [
+      "#f6f3ee",
+      "#fffdf9",
+      "#e0d9cd",
+      "#1d1b18",
+      "#6b645a",
+      "#7d2a26",
+      "#5f1f1c",
+      "#a8844a"
+    ],
+    "notes": "Full-bleed band: --wall by default, --paper with inset --rule hairlines for tone=\"paper\". Inner section 1240px max, padding 28px 16px (48px 32px from 860px), 20px gap. Kicker is the .kicker style (11px 600 uppercase .12em oxblood). Heading is Newsreader 500, never bold: 22px h3, 30px h2, clamp(34px,5vw,44px) h1, text-wrap balance, with a 40x1px gilt hairline under it. Intro Newsreader 18px --soft, max 62ch. The link sits on the heading baseline at the right (oxblood 14px 600 with an arrow that nudges on hover, 44px target) and drops under the heading below 560px. button-href with button-text renders a solid oxblood .btn link (no button without button-text). ::slotted(p) is Newsreader 18px/1.65, max 65ch, margin 0. The header is omitted when kicker, heading, intro, link and button are all empty. A child g-artwork-grid that collapses sets the hidden attribute on this section (:host([hidden]) hides it). With a slot attribute (nested, e.g. g-split's aside) it has no band background, hairlines, max-width or padding. Only site paths, #anchors and http(s) links are accepted for link-href/button-href."
+  },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<section aria-labelledby=h><header><p class=kicker>{kicker}</p><div class=row><h2 id=h>{heading}</h2 (h1/h3 per level)><a class=more href={link-href}>{link-text} →</a></div><p class=intro>{intro}</p><p class=cta><a class=btn href={button-href}>{button-text}</a></p></header><div class=body><slot></slot></div></section>"
+}
