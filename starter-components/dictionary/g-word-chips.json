@@ -1,0 +1,15 @@
+{
+  "prompt": "Labelled set of related words (synonyms, antonyms, see also).",
+  "id": "g-word-chips",
+  "shortDesc": "Labelled row of related words as serif pill chips (synonyms, antonyms, see also); each chip links to /word/<word>.",
+  "role": "leaf",
+  "props": [
+    { "name": "label", "type": "string", "required": false, "description": "Row label, e.g. Synonyms." },
+    { "name": "words", "type": "json", "required": true, "description": "Array of word strings." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-2 px-5 py-3", "palette": ["#f3ead7", "#d6c3a0", "#8a5a3b"], "notes": "Rule-bordered pill chips in Newsreader; mono uppercase label." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div><span class=label>{label}</span><div><a href=/word/{w}>{w}</a>…</div></div>"
+}

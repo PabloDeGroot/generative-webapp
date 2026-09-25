@@ -19,6 +19,7 @@ Apply every rule. A single violation is enough for a non-ok verdict.
 9. **Dependencies present.** Every id in `spec.dependencies` appears as a custom-element tag somewhere in the source (in `innerHTML`, template strings, or `createElement`).
 10. **No undefined globals.** The source uses only standard browser APIs, the imported Twind helpers, and identifiers it defines itself. No references to `window.X` for unknown `X`, no `globalThis` lookups for app-specific names.
 11. **Avoid callbacks**: Callbacks are rarely needed and make a component less self suficient, would be callback logic should be handled in-component when posible, if rendering large amounts of information consider prompting a redirect to a page that would contain that content.
+12. **No writes to built-in element properties.** Props must not be stored on properties every HTMLElement already has that reflect attributes (`title`, `id`, `lang`, `dir`, `hidden`, `slot`, `className`, `tabIndex`, `role`, …). `this.title = newValue` inside `attributeChangedCallback` re-sets the attribute and recurses forever. Violation unless the value lives in a private field such as `this._title`.
 </rules>
 
 <output_schema>

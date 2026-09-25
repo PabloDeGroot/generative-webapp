@@ -1,0 +1,19 @@
+{
+  "prompt": "Commons site bar shown at the top of every community page.",
+  "id": "g-site-header",
+  "shortDesc": "Commons site bar: pine wordmark, navigation (Home, Boards, New post), a notifications bell with the unread count, and an account slot; put it first on every page.",
+  "role": "layout",
+  "props": [
+    { "name": "site-name", "type": "string", "required": false, "description": "Wordmark text. Default \"Commons\"." },
+    { "name": "current", "type": "string", "required": false, "description": "Highlighted link: home, boards or new." },
+    { "name": "unread", "type": "number", "required": false, "description": "Unread notifications (ListNotifications → unread); the bell shows a badge when above 0." }
+  ],
+  "slots": [
+    { "name": "nav", "description": "Replaces the default navigation links.", "accepts": "a elements" },
+    { "name": "account", "description": "Right-hand area, e.g. the sign-in button.", "accepts": "google-login or any element" }
+  ],
+  "styling": { "tailwindClasses": "flex items-center gap-4 px-5 py-3 bg-white border-b", "palette": ["#ffffff", "#2d6a4c", "#e0582c", "#22262b"], "notes": "White bar on paper grey; Archivo 800 pine wordmark; orange unread badge." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<header><a class=logo href=/>Commons</a><nav>Home · Boards · New post</nav><a href=/notifications>🔔<b>{unread}</b></a><slot name=account></slot></header>"
+}

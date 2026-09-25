@@ -16,7 +16,8 @@ The resulting HTML is injected into the page via `{@html}` in `+page.svelte`. Co
 - `mcp` — stateless MCP endpoint that the page designer connects to for component CRUD tools.
 - `generateContent` / `createScene` — callable functions for text and Three.js scene generation.
 - `evaluateFeedback` — routes user free-form feedback into per-user component overrides or stored preferences (via `SaveUserPreference` / `UpdateComponent`).
-- `initializeComponents` / `updateComponents` / `resetComponents` — operator-only functions for seeding the shared component library.
+- `initializeComponents` / `updateComponents` / `resetComponents` — operator-only functions for seeding, curating and clearing a toolkit's shared component library.
+- `installComponents` / `exportComponents` — operator-only: install hand-defined starter components from `starter-components/<toolkit>/` and export library components back to it (driven by `npm run components:install` / `components:pull`, `scripts/components.mjs`; format in `starter-components/README.md`).
 
 Access control (IAM invoker settings are applied on deploy; the emulator ignores them):
 - Operator functions are built with `operatorFunction()`: private `onRequest` functions that speak the callable wire format. Don't make them `onCall` — Firebase ignores `invoker` on callable functions and always deploys them public. Call them with `npm run call -- NAME '<json data>'` (`scripts/call-function.mjs`), which sends your gcloud identity token in `X-Serverless-Authorization`; add `--emulator` to call the local emulator.
@@ -96,6 +97,8 @@ Key variables:
 When `CreateComponent` or `UpdateComponent` is called, it runs three sequential LLM phases in `component-manager.ts`:
 1. **Designer** (agentic, with component library tools) → outputs `ComponentSpec` JSON
 2. **Codegen** (single-shot) → outputs raw JavaScript for a `HTMLElement` subclass
-3. **Evaluator** (single-shot) → validates the code; on failure, codegen retries once with feedback
+3. **Evaluator** — first a deterministic lint (`lintComponentCode`: no props stored on reflected built-in element properties like `this.title`, which recurse through `attributeChangedCallback`), then a single-shot LLM review; on failure, codegen retries once with the feedback, and a remaining lint clash is fixed by renaming to a private field (`this._title`)
 
 The final JS is patched by `ensureTwind()` to add Twind imports and extend `withTwind(HTMLElement)`, then saved to Firebase Storage with a `gs://` path recorded in Firestore.
+
+**Starter components** skip this pipeline partly: `InstallStarterComponent` stores hand-written code as-is (after the lint and `ensureTwind`), or runs only codegen + evaluator on a hand-written spec (no designer). Their Firestore docs carry `origin: "starter-code" | "starter-spec"`. Install starters before `initializeComponents`, which reads the existing library and matches its visual language.

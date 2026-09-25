@@ -572,6 +572,117 @@ import presetTailwind from 'https://esm.sh/@twind/preset-tailwind';
     return code;
 }
 // ---------------------------------------------------------------------------
+// Starter components — hand-defined components installed as-is (see starter-components/)
+// ---------------------------------------------------------------------------
+
+export interface StarterComponentInput {
+    /** Required: id and shortDesc. Missing spec fields get empty defaults. */
+    spec: Partial<ComponentSpec> & { id: string; shortDesc: string };
+    /** Hand-written source. Without it, the source is generated from the spec (codegen + evaluator, no designer). */
+    code?: string;
+    /** What the component is for; shown to later update requests. */
+    prompt?: string;
+}
+
+export interface StarterInstallResult {
+    id: string;
+    status: "installed" | "skipped" | "rejected";
+    generated?: boolean;
+    reason?: string;
+}
+
+const CUSTOM_ELEMENT_ID = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
+
+function normalizeStarterSpec(spec: StarterComponentInput["spec"]): ComponentSpec {
+    return {
+        id: spec.id,
+        shortDesc: spec.shortDesc,
+        role: spec.role ?? "leaf",
+        props: spec.props ?? [],
+        slots: spec.slots ?? [],
+        styling: { tailwindClasses: "", palette: [], notes: "", ...spec.styling },
+        dependencies: spec.dependencies ?? [],
+        interactions: spec.interactions ?? [],
+        markupSketch: spec.markupSketch ?? ""
+    };
+}
+
+/**
+ * Installs one hand-defined component into the current toolkit's shared library. Hand-written
+ * code is stored as-is (plus the same Twind wrapper and checks generated code gets); a spec
+ * without code is turned into code by the codegen + evaluator phases. Existing components are
+ * left alone unless overwrite is set.
+ */
+export async function InstallStarterComponent(input: StarterComponentInput, overwrite = false): Promise<StarterInstallResult> {
+    ensureFirebaseApp();
+    const id = input.spec?.id?.trim() ?? "";
+    const installLog = log.child("starter", { id });
+    if (!CUSTOM_ELEMENT_ID.test(id)) {
+        return { id, status: "rejected", reason: "id must be a valid custom element name: lowercase, with at least one hyphen (e.g. g-site-header)." };
+    }
+    if (BUILT_IN_IDS.has(id)) return { id, status: "rejected", reason: "id is a built-in component." };
+    if (!input.spec.shortDesc?.trim()) return { id, status: "rejected", reason: "spec.shortDesc is required." };
+
+    const scope: Scope = { kind: "default" };
+    const existing = await readComponentDocAt(scope, id);
+    if (existing && !overwrite) return { id, status: "skipped", reason: "already in the library (use overwrite to replace it)." };
+
+    const spec = normalizeStarterSpec({ ...input.spec, id });
+    let code: string;
+    let generated = false;
+    if (input.code?.trim()) {
+        if (!input.code.includes(id)) {
+            return { id, status: "rejected", reason: `code must register the element as \x27${id}\x27 (customElements.define).` };
+        }
+        const lint = lintComponentCode(input.code, spec);
+        if (lint) return { id, status: "rejected", reason: lint.issues.join(" ") };
+        code = `/*\n * Starter component: ${id} (hand-written, installed from starter-components/)\n */\n\n${ensureTwind(input.code)}`;
+    } else {
+        const result = await generateAndEvaluateCode({ id, spec, previousCode: "", mode: "create" });
+        code = buildDebugComment(spec, result.verdicts) + ensureTwind(result.code);
+        generated = true;
+    }
+
+    const gsPath = await storeComponentSourceAt(scope, id, code);
+    const dependencies = Array.from(new Set(spec.dependencies.map((d) => d.id).filter(Boolean)));
+    await docRefFor(scope, id).set({
+        id,
+        shortDesc: spec.shortDesc,
+        gsPath,
+        prompt: input.prompt?.trim() || `Starter component: ${spec.shortDesc}`,
+        dependencies,
+        spec,
+        origin: generated ? "starter-spec" : "starter-code",
+        updatedAt: FieldValue.serverTimestamp(),
+        createdAt: existing?.createdAt ?? FieldValue.serverTimestamp()
+    }, { merge: true });
+    installLog.info("installed", { generated, overwrite: Boolean(existing), gsPath });
+    return { id, status: "installed", generated };
+}
+
+const TWIND_PRELUDE = /^[\s\S]*?let withTwind = install\(config\)\s*/;
+
+/** Library components as starter files: spec, prompt, and source without the debug header or Twind wrapper. */
+export async function ExportComponents(ids?: string[]): Promise<Array<{ spec: ComponentSpec | null; prompt: string; code: string; origin: string }>> {
+    ensureFirebaseApp();
+    const collection = getFirestore().collection(sharedLibraryPath());
+    const snaps = ids?.length ? await Promise.all(ids.map((id) => collection.doc(id).get())) : (await collection.get()).docs;
+    const exported = [];
+    for (const snap of snaps) {
+        if (!snap.exists) continue;
+        const doc = snap.data() as ComponentDocument & { origin?: string };
+        let code = doc.gsPath ? await readComponentSourceFromGsPath(doc.gsPath) : "";
+        code = code
+            .replace(/^\/\*[\s\S]*?\*\/\s*/, "")            // debug / starter header
+            .replace(TWIND_PRELUDE, "")                              // Twind imports, re-added on install
+            .replace("extends withTwind(HTMLElement)", "extends HTMLElement")
+            .replace(/^([ \t]*)super\.(connectedCallback|disconnectedCallback)\(\);\r?\n/gm, "");
+        exported.push({ spec: doc.spec ?? null, prompt: doc.prompt ?? "", code, origin: doc.origin ?? "generated" });
+    }
+    return exported;
+}
+
+// ---------------------------------------------------------------------------
 // createOrUpdateComponent — orchestrates design + codegen, routes writes
 // ---------------------------------------------------------------------------
 
@@ -980,7 +1091,54 @@ interface EvaluatorVerdict {
     suggestion?: string;
 }
 
+// Properties every HTMLElement already has that reflect an attribute. Assigning one of them for a
+// prop of the same name (this.title = newValue in attributeChangedCallback) sets the attribute
+// again, re-entering attributeChangedCallback forever ("Maximum call stack size exceeded").
+const REFLECTED_ELEMENT_PROPERTIES = [
+    "title", "id", "lang", "dir", "hidden", "slot", "className", "tabIndex", "accessKey", "draggable", "translate",
+    "inert", "popover", "autofocus", "nonce", "spellcheck", "role", "contentEditable", "inputMode", "enterKeyHint",
+    "autocapitalize"
+];
+
+function camelCase(kebab: string): string {
+    return kebab.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+
+/** Reflected built-in properties the code assigns and that are also one of the component's own props. */
+function reflectedPropAssignments(code: string, spec: ComponentSpec): string[] {
+    const propNames = new Set((spec.props ?? []).map((p) => camelCase(String(p.name ?? ""))));
+    return REFLECTED_ELEMENT_PROPERTIES.filter((name) =>
+        propNames.has(name) && new RegExp(`\\bthis\\.${name}\\s*(?:=(?!=)|\\+=)`).test(code)
+    );
+}
+
+/** Deterministic checks run before the LLM evaluator; a failure here skips the LLM call. */
+function lintComponentCode(code: string, spec: ComponentSpec): EvaluatorVerdict | null {
+    const clashes = reflectedPropAssignments(code, spec);
+    if (!clashes.length) return null;
+    return {
+        ok: false,
+        issues: clashes.map((name) => `Rule 12: assigns this.${name}, a built-in HTMLElement property that reflects the "${name}" attribute, which re-triggers attributeChangedCallback forever.`),
+        suggestion: `Store these props in private fields instead (${clashes.map((n) => `this._${n}`).join(", ")}) and read them from there when rendering; never assign to built-in element properties.`
+    };
+}
+
+/** Last resort when codegen keeps the clash: move the props to private fields (this.title -> this._title). */
+function renameReflectedProps(code: string, spec: ComponentSpec): string {
+    let fixed = code;
+    for (const name of reflectedPropAssignments(code, spec)) {
+        fixed = fixed.replace(new RegExp(`\\bthis\\.${name}\\b(?!\\s*\\()`, "g"), `this._${name}`);
+    }
+    return fixed;
+}
+
 async function evaluateComponentCode(input: { id: string; spec: ComponentSpec; code: string; mode: ComponentMutationMode }): Promise<EvaluatorVerdict> {
+    const lintVerdict = lintComponentCode(input.code, input.spec);
+    if (lintVerdict) {
+        log.child("evaluator", { id: input.id }).info("lint_failed", { issues: lintVerdict.issues });
+        return lintVerdict;
+    }
+
     const parts = [
         `Component ID: ${input.id}`,
         `Spec:\n\n${JSON.stringify(input.spec, null, 2)}`,
@@ -1112,7 +1270,11 @@ async function generateAndEvaluateCode(input: {
         issues: verdict.issues,
         suggestion: verdict.suggestion ?? null
     });
-    return { code, verdicts };
+    const renamed = renameReflectedProps(code, input.spec);
+    if (renamed !== code) {
+        optimizerLog.warn("renamed_reflected_props", { id: input.id, props: reflectedPropAssignments(code, input.spec) });
+    }
+    return { code: renamed, verdicts };
 }
 
 // ---------------------------------------------------------------------------

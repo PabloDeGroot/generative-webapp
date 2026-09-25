@@ -1,0 +1,15 @@
+{
+  "prompt": "Lexicon site bar shown at the top of every dictionary page.",
+  "id": "g-site-header",
+  "shortDesc": "Lexicon site bar: serif wordmark on the left, navigation links (Today, Random, Search, Favorites) on the right; put it first on every page.",
+  "role": "layout",
+  "props": [
+    { "name": "site-name", "type": "string", "required": false, "description": "Wordmark text. Default \"Lexicon\"." },
+    { "name": "current", "type": "string", "required": false, "description": "Highlighted link: today, random, search or favorites." }
+  ],
+  "slots": [ { "name": "nav", "description": "Replaces the default navigation links.", "accepts": "a elements" } ],
+  "styling": { "tailwindClasses": "flex items-center gap-4 px-5 py-4", "palette": ["#f3ead7", "#3b2a1e", "#8a5a3b", "#a0721a", "#d6c3a0"], "notes": "Parchment background, ink text, gilt underline on the current link. Newsreader wordmark with the second half in sepia italic." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<header><a class=logo href=/>Lex<em>icon</em></a><nav><slot name=nav>Today Random Search Favorites</slot></nav></header>"
+}

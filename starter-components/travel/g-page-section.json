@@ -1,0 +1,15 @@
+{
+  "prompt": "Titled block that groups other components on Wayfarer pages.",
+  "id": "g-page-section",
+  "shortDesc": "Titled content block: a short sea-coloured kicker, a bold heading, then child components in its default slot; use it to structure every page.",
+  "role": "layout",
+  "props": [
+    { "name": "kicker", "type": "string", "required": false, "description": "Short line above the heading, e.g. \"Plan the days\"." },
+    { "name": "heading", "type": "string", "required": false, "description": "Section heading." }
+  ],
+  "slots": [ { "name": "", "description": "Section content.", "accepts": "any components" } ],
+  "styling": { "tailwindClasses": "grid gap-3 px-5 py-6", "palette": ["#0d6f78", "#13293d"], "notes": "Bricolage Grotesque 26px heading; bold sea kicker." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<section><span class=kicker>{kicker}</span><h2>{heading}</h2><slot></slot></section>"
+}

@@ -209,7 +209,7 @@ function hotness(post: PostDoc, now: number): number {
     return (post.score + post.commentCount * 0.5 + 1) / Math.pow(ageHours + 2, 1.5);
 }
 
-function summarize(post: PostRecord, authors: Map<string, Author>, myVote?: number) {
+function summarize(post: PostRecord, authors: Map<string, Author>, myVote?: number, viewerId?: string | null) {
     return {
         id: post.id,
         boardId: post.boardId,
@@ -221,7 +221,9 @@ function summarize(post: PostRecord, authors: Map<string, Author>, myVote?: numb
         lastActivityAt: new Date(post.lastActivityAt).toISOString(),
         score: post.score,
         commentCount: post.commentCount,
-        ...(myVote !== undefined && { myVote })
+        ...(myVote !== undefined && { myVote }),
+        // Whether the signed-in viewer wrote it, so pages only offer edit/delete to the author.
+        ...(viewerId && { mine: post.authorId === viewerId })
     };
 }
 
@@ -268,7 +270,7 @@ export async function listPosts(userId: string | null, options: {
         sort,
         total: list.length,
         offset,
-        posts: page.map((p, i) => summarize(p, authors, userId ? votes[i] : undefined))
+        posts: page.map((p, i) => summarize(p, authors, userId ? votes[i] : undefined, userId))
     };
 }
 
@@ -351,6 +353,7 @@ interface CommentDoc {
 
 interface CommentNode {
     id: string;
+    mine?: boolean;
     parentId: string | null;
     depth: number;
     body: string;
@@ -388,7 +391,7 @@ export async function getPost(userId: string | null, postId: string) {
         edited: c.editedAt !== null,
         score: c.score,
         deleted: c.deleted,
-        ...(userId && { myVote: commentVotes[i] }),
+        ...(userId && { myVote: commentVotes[i], mine: !c.deleted && c.authorId === userId }),
         replies: []
     }));
     const roots: CommentNode[] = [];
@@ -404,7 +407,7 @@ export async function getPost(userId: string | null, postId: string) {
 
     return {
         post: {
-            ...summarize(post, authors, userId ? postVote : undefined),
+            ...summarize(post, authors, userId ? postVote : undefined, userId),
             body: post.body,
             edited: post.editedAt !== null,
             deleted: post.deleted,

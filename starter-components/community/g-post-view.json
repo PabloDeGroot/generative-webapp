@@ -1,0 +1,17 @@
+{
+  "prompt": "A full post with votes and author actions.",
+  "id": "g-post-view",
+  "shortDesc": "A full post (from GetPost post): board tag, title, author and age, body paragraphs, tags, vote control and comment count; when post.mine is true the author gets Edit and Delete.",
+  "role": "leaf",
+  "props": [
+    { "name": "post", "type": "json", "required": true, "description": "GetPost → post: { id, boardId, title, body, tags, author: { displayName }, createdAt, edited, score, commentCount, myVote?, mine? }." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-3 bg-white p-5 rounded-lg", "palette": ["#ffffff", "#22262b", "#6b7178", "#2d6a4c"], "notes": "Archivo 800 28px title; 16px body lines capped near 64 characters; inline delete confirmation (no browser dialogs)." },
+  "dependencies": [ { "id": "g-vote-control", "usage": "Vote control in the action bar." } ],
+  "interactions": [
+    { "trigger": "Edit form saved", "method": "POST", "route": "/post/{id}", "bodyShape": "{ intent: 'edit post', postId, title, body, outputFormat: { ok: 'boolean' } }" },
+    { "trigger": "Delete confirmed", "method": "POST", "route": "/post/{id}", "bodyShape": "{ intent: 'delete post', postId, outputFormat: { ok: 'boolean' } }" }
+  ],
+  "markupSketch": "<article><span class=tag>{board}</span><h1>{title}</h1><p class=meta>{author} · {ago}</p><div class=body>{body}</div><footer><g-vote-control compact></g-vote-control> {n} comments <button>Edit</button><button>Delete</button></footer></article>"
+}

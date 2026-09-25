@@ -1,0 +1,22 @@
+{
+  "prompt": "Summary card for one saved trip.",
+  "id": "g-trip-card",
+  "shortDesc": "Card for one saved trip (from ListTrips): colour band, title, dates with number of nights, number of plans and spending against budget; links to /trips/<trip-id>. Place several in a grid for the trips list.",
+  "role": "leaf",
+  "props": [
+    { "name": "trip-id", "type": "string", "required": true, "description": "Trip id, used for the link." },
+    { "name": "title", "type": "string", "required": true, "description": "Trip title." },
+    { "name": "destination", "type": "string", "required": false, "description": "Destination name." },
+    { "name": "start-date", "type": "string", "required": true, "description": "YYYY-MM-DD." },
+    { "name": "end-date", "type": "string", "required": true, "description": "YYYY-MM-DD." },
+    { "name": "item-count", "type": "number", "required": false, "description": "Number of itinerary items." },
+    { "name": "spent", "type": "number", "required": false, "description": "Amount spent so far, in currency." },
+    { "name": "budget", "type": "number", "required": false, "description": "Trip budget, in currency." },
+    { "name": "currency", "type": "string", "required": false, "description": "Home currency code. Default EUR." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid rounded-xl border overflow-hidden", "palette": ["#0d6f78", "#58a9b3", "#f0643f", "#f2b53a", "#d5e5ea"], "notes": "64px gradient band (sea or coral–sun, picked per trip), Bricolage title, mono figures." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<a class=card href=/trips/{trip-id}><div class=band></div><b>{title}</b><small>{dates} · {nights} nights</small><div>{item-count} plans · {spent}/{budget}</div></a>"
+}

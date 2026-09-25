@@ -1,0 +1,15 @@
+{
+  "prompt": "Form for writing a new post.",
+  "id": "g-post-composer",
+  "shortDesc": "New-post form: board picker, title, body and comma-separated tags; publishes and then opens the new post (or reloads). Use on /submit.",
+  "role": "leaf",
+  "props": [
+    { "name": "board", "type": "string", "required": false, "description": "Preselected board id." },
+    { "name": "boards", "type": "json", "required": false, "description": "Array of { id, name } (ListBoards). Defaults to the five standard boards." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-3 bg-white p-5 rounded-lg", "palette": ["#2d6a4c", "#ffffff", "#6b7178"], "notes": "Two-column board/tags row that stacks on phones; pine Publish button; note about the 5-posts-per-hour limit." },
+  "dependencies": [],
+  "interactions": [ { "trigger": "Form submitted", "method": "POST", "route": "/submit", "bodyShape": "{ intent: 'create a post', board, title, body, tags: string[], outputFormat: { ok: 'boolean', postId: 'string' } }" } ],
+  "markupSketch": "<form><select name=board></select><input name=tags><input name=title><textarea name=body></textarea><button>Publish post</button></form>"
+}

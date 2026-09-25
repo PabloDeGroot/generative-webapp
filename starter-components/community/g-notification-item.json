@@ -1,0 +1,14 @@
+{
+  "prompt": "One reply notification.",
+  "id": "g-notification-item",
+  "shortDesc": "One notification (from ListNotifications notifications[]): who replied to your post or comment, the post title, an excerpt and the age; unread ones carry an orange dot. Links to the comment on the post. Stack several for /notifications.",
+  "role": "leaf",
+  "props": [
+    { "name": "notification", "type": "json", "required": true, "description": "{ type: 'post-reply' | 'comment-reply', postId, postTitle, commentId, fromName, excerpt, createdAt, read }." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid grid-cols-[10px_1fr_auto] gap-3 rounded-lg border bg-white px-3 py-2", "palette": ["#ffffff", "#e2e2dc", "#e0582c", "#6b7178"], "notes": "Orange unread dot; grey excerpt; relative time on the right." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<a href=/post/{postId}#c-{commentId}><i class=dot></i><div><b>{fromName}</b> replied to your {post|comment}<small>“{excerpt}”</small></div><time>{ago}</time></a>"
+}

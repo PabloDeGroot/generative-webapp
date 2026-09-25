@@ -1,0 +1,18 @@
+{
+  "prompt": "Up/down vote control for posts and comments.",
+  "id": "g-vote-control",
+  "shortDesc": "Up/down vote with the score for a post (or a comment when comment-id is set); clicking the active arrow again removes the vote. Updates immediately and saves in the background. Vertical by default, horizontal with compact.",
+  "role": "leaf",
+  "props": [
+    { "name": "post-id", "type": "string", "required": true, "description": "Post id." },
+    { "name": "comment-id", "type": "string", "required": false, "description": "Comment id, when voting on a comment." },
+    { "name": "score", "type": "number", "required": true, "description": "Current score." },
+    { "name": "my-vote", "type": "number", "required": false, "description": "The viewer's vote: 1, -1 or 0." },
+    { "name": "compact", "type": "boolean", "required": false, "description": "Horizontal pill layout, for comments." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid justify-items-center", "palette": ["#e0582c", "#3a6ea5", "#6b7178"], "notes": "Orange when upvoted, blue when downvoted, grey otherwise; Archivo tabular score." },
+  "dependencies": [],
+  "interactions": [ { "trigger": "Up or down arrow clicked", "method": "POST", "route": "/post/{post-id}", "bodyShape": "{ intent: 'vote', postId, commentId?, value: 1 | -1 | 0, outputFormat: { ok: 'boolean', score: 'number', myVote: 'number' } }" } ],
+  "markupSketch": "<div><button>▲</button><b>{score}</b><button>▼</button></div>"
+}

@@ -1,0 +1,15 @@
+{
+  "prompt": "Titled block that groups other components on Lexicon pages.",
+  "id": "g-page-section",
+  "shortDesc": "Titled content block: small uppercase eyebrow, serif heading, then any child components in its default slot; use it to structure every page into sections.",
+  "role": "layout",
+  "props": [
+    { "name": "eyebrow", "type": "string", "required": false, "description": "Small label above the heading, e.g. \"Word of the day · 25 Sep\"." },
+    { "name": "heading", "type": "string", "required": false, "description": "Section heading." }
+  ],
+  "slots": [ { "name": "", "description": "Section content.", "accepts": "any components" } ],
+  "styling": { "tailwindClasses": "grid gap-3 px-5 py-6", "palette": ["#3b2a1e", "#8a5a3b"], "notes": "Mono uppercase eyebrow in sepia, Newsreader heading." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<section><span class=eyebrow>{eyebrow}</span><h2>{heading}</h2><slot></slot></section>"
+}

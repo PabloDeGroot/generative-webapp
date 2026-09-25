@@ -1,0 +1,15 @@
+{
+  "prompt": "Packing list for a trip, grouped by category.",
+  "id": "g-packing-checklist",
+  "shortDesc": "Packing checklist (from GetTripOverview packingList.items) grouped by category, each item with a quantity and the reason it's there; ticks are remembered in the browser per trip.",
+  "role": "leaf",
+  "props": [
+    { "name": "items", "type": "json", "required": true, "description": "Array of { item, quantity?, reason, category } (GetTripOverview → packingList.items)." },
+    { "name": "trip-id", "type": "string", "required": false, "description": "Trip id, so ticks are remembered per trip." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-4 p-4 sm:grid-cols-2", "palette": ["#0d6f78", "#5b7385"], "notes": "Uppercase sea category headings; sea accent-colour checkboxes; reason in small grey text." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div><section><h3>Weather</h3><label><input type=checkbox>Umbrella<small>2 days with rain likely</small></label></section>…</div>"
+}

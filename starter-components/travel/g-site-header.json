@@ -1,0 +1,18 @@
+{
+  "prompt": "Wayfarer site bar shown at the top of every travel page.",
+  "id": "g-site-header",
+  "shortDesc": "Wayfarer site bar: wordmark with a coral dot, navigation pills (Destinations, My trips) and an account slot on the right; put it first on every page.",
+  "role": "layout",
+  "props": [
+    { "name": "site-name", "type": "string", "required": false, "description": "Wordmark text. Default \"Wayfarer\"." },
+    { "name": "current", "type": "string", "required": false, "description": "Highlighted link: destinations or trips." }
+  ],
+  "slots": [
+    { "name": "nav", "description": "Replaces the default navigation links.", "accepts": "a elements" },
+    { "name": "account", "description": "Right-hand area, e.g. the sign-in button.", "accepts": "google-login or any element" }
+  ],
+  "styling": { "tailwindClasses": "flex items-center gap-4 px-5 py-3", "palette": ["#ffffff", "#e6f2f6", "#0d6f78", "#f0643f", "#13293d"], "notes": "White bar with a sky bottom rule; current link as a sky pill with sea text." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<header><a class=logo href=/><i></i>Wayfarer</a><nav><slot name=nav>Destinations · My trips</slot></nav><slot name=account></slot></header>"
+}

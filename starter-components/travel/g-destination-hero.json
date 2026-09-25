@@ -1,0 +1,19 @@
+{
+  "prompt": "Photo header for a destination page.",
+  "id": "g-destination-hero",
+  "shortDesc": "Destination header: full-width photo (from GetDestination wikipedia.image) with the place name in large type, country with flag, live local time and region.",
+  "role": "leaf",
+  "props": [
+    { "name": "image-url", "type": "string", "required": false, "description": "Photo URL (GetDestination → wikipedia.image). A sea-and-sky gradient is shown without one." },
+    { "name": "place", "type": "string", "required": true, "description": "Place name, e.g. Porto." },
+    { "name": "country", "type": "string", "required": false, "description": "Country name." },
+    { "name": "flag", "type": "string", "required": false, "description": "Flag emoji (GetDestination → country.flagEmoji)." },
+    { "name": "timezone", "type": "string", "required": false, "description": "IANA timezone (GetDestination → place.timezone); shows the live local time." },
+    { "name": "region", "type": "string", "required": false, "description": "Region or state." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "relative grid content-end min-h-[260px] p-6 text-white", "palette": ["#13293d", "#ffffff"], "notes": "Dark harbour gradient over the photo for legibility; 64px Bricolage Grotesque place name; translucent white chips." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div class=hero style=background-image><h1>{place}</h1><p>{flag} {country} <span>{local time}</span> <span>{region}</span></p></div>"
+}

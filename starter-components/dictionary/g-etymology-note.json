@@ -1,0 +1,15 @@
+{
+  "prompt": "A word's history shown as a chain of stages.",
+  "id": "g-etymology-note",
+  "shortDesc": "Word origin as a left-to-right chain of stages (oldest first), each with a form and a short note; falls back to a plain paragraph when only text is given.",
+  "role": "leaf",
+  "props": [
+    { "name": "stages", "type": "json", "required": false, "description": "Array of { form, note }, oldest first, e.g. [{ form: 'Sarandīp', note: 'Persian · Sri Lanka' }]." },
+    { "name": "text", "type": "string", "required": false, "description": "Plain origin text, used when stages aren't available." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-3 px-5 py-4", "palette": ["#ebdfc5", "#d6c3a0", "#8a5a3b", "#a0721a"], "notes": "Vellum stage boxes with a rule border, gilt arrows, mono notes." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div><span class=eyebrow>Origin</span><div class=chain><span>{form}<small>{note}</small></span> → …</div></div>"
+}

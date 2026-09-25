@@ -29,7 +29,7 @@ export const communityToolkit: DomainToolkit = {
         },
         {
             name: "ListPosts",
-            description: "Lists posts, optionally in one board, with a tag, or by one author. sort: hot (default), new, top or active (latest comment). Each post has title, excerpt, tags, author, score, comment count, age and — when signed in — the user's own vote (1, -1 or 0).",
+            description: "Lists posts, optionally in one board, with a tag, or by one author. sort: hot (default), new, top or active (latest comment). Each post has title, excerpt, tags, author, score, comment count, age and — when signed in — the user's own vote (1, -1 or 0) and mine (true when they wrote it).",
             inputSchema: {
                 board: z.enum(BOARD_IDS).optional(),
                 sort: z.enum(["hot", "new", "top", "active"]).optional(),
@@ -43,7 +43,7 @@ export const communityToolkit: DomainToolkit = {
         },
         {
             name: "GetPost",
-            description: "One post with its full body and the whole comment thread as a tree (each comment has replies[], depth, author, score, and the user's own vote when signed in). Deleted comments show as [deleted] but keep their replies.",
+            description: "One post with its full body and the whole comment thread as a tree (each comment has replies[], depth, author, score, and, when signed in, the user's own vote and mine: true on what they wrote, which is the only content they may edit or delete). Deleted comments show as [deleted] but keep their replies.",
             inputSchema: { postId: z.string().min(1) },
             readOnly: true,
             handler: async ({ postId }: { postId: string }, ctx) => getPost(ctx.userId, postId)

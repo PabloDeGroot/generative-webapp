@@ -1,0 +1,15 @@
+{
+  "prompt": "Word search field.",
+  "id": "g-search-box",
+  "shortDesc": "Word search field with a Search button; submitting opens /search/<query>.",
+  "role": "leaf",
+  "props": [
+    { "name": "value", "type": "string", "required": false, "description": "Prefilled query (e.g. on a results page)." },
+    { "name": "placeholder", "type": "string", "required": false, "description": "Placeholder text. Default \"Search words\"." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "flex gap-2 px-5 py-4", "palette": ["#3b2a1e", "#8a5a3b", "#f3ead7"], "notes": "Serif 18px input with a sepia border; solid ink button." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<form><input value={value}><button>Search</button></form>"
+}

@@ -1,0 +1,14 @@
+{
+  "prompt": "A post in a list.",
+  "id": "g-post-row",
+  "shortDesc": "One post in a list (from ListPosts posts[]): vote control, title linking to /post/<id>, board tag, author, age and comment count. Stack several for board and home pages.",
+  "role": "leaf",
+  "props": [
+    { "name": "post", "type": "json", "required": true, "description": "One ListPosts post: { id, boardId, title, tags, author: { displayName }, createdAt, score, commentCount, myVote? }." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid grid-cols-[44px_1fr] gap-3 rounded-lg border bg-white p-3", "palette": ["#ffffff", "#e2e2dc", "#6b7178"], "notes": "White row, Archivo 16px title, small grey meta line with a pine board tag." },
+  "dependencies": [ { "id": "g-vote-control", "usage": "Vote column on the left." } ],
+  "interactions": [],
+  "markupSketch": "<article><g-vote-control post-id score my-vote></g-vote-control><div><a href=/post/{id}>{title}</a><p><span class=tag>{boardId}</span> by {author} · {ago} · {n} comments</p></div></article>"
+}

@@ -1,0 +1,15 @@
+{
+  "prompt": "Day-by-day weather tiles.",
+  "id": "g-weather-strip",
+  "shortDesc": "Row of daily weather tiles (icon, high/low in °C, chance of rain); today is highlighted. Takes the days array from GetWeather or GetDestination.forecast, and shows the source note (e.g. last year's weather) when given.",
+  "role": "leaf",
+  "props": [
+    { "name": "days", "type": "json", "required": true, "description": "Array of { date, summary, weatherCode, tempMaxC, tempMinC, precipitationChance?, precipitationMm? } (GetWeather days / GetDestination forecast)." },
+    { "name": "note", "type": "string", "required": false, "description": "Source note, e.g. \"Beyond the forecast range: weather on the same dates last year\"." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid grid-flow-col auto-cols-[minmax(76px,1fr)] gap-2 p-4 overflow-x-auto", "palette": ["#e6f2f6", "#13293d", "#0d6f78"], "notes": "Sky tiles, today in harbour navy with white text; DM Mono temperatures." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div><div class=day><b>Today</b><span>☀️</span><span>27° 17°</span><span>0%</span></div>…<p>{note}</p></div>"
+}

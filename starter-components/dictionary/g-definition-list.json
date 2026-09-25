@@ -1,0 +1,14 @@
+{
+  "prompt": "Numbered senses of a word with usage examples.",
+  "id": "g-definition-list",
+  "shortDesc": "Numbered list of a word's senses in serif type, each with an optional italic usage example.",
+  "role": "leaf",
+  "props": [
+    { "name": "definitions", "type": "json", "required": true, "description": "Array of { text, example? } (plain strings also accepted), in sense order." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-4 px-5 py-4", "palette": ["#3b2a1e", "#8a5a3b", "#a0721a"], "notes": "Gilt sense numbers; 18px Newsreader text; sepia italic examples." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<ol><li><span>1</span><p>{text}</p><p class=ex>{example}</p></li></ol>"
+}

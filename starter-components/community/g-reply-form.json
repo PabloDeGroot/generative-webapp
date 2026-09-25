@@ -1,0 +1,16 @@
+{
+  "prompt": "Comment or reply box.",
+  "id": "g-reply-form",
+  "shortDesc": "Comment box for a post, or a reply to one comment when parent-comment-id is set: textarea with a character counter and a Post button; reloads the page after posting.",
+  "role": "leaf",
+  "props": [
+    { "name": "post-id", "type": "string", "required": true, "description": "Post id." },
+    { "name": "parent-comment-id", "type": "string", "required": false, "description": "Comment being replied to." },
+    { "name": "replying-to", "type": "string", "required": false, "description": "Display name being replied to, for the label." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-2 bg-white p-4", "palette": ["#2d6a4c", "#ffffff", "#6b7178"], "notes": "Pine submit button; counter in small grey text." },
+  "dependencies": [],
+  "interactions": [ { "trigger": "Form submitted", "method": "POST", "route": "/post/{post-id}", "bodyShape": "{ intent: 'add a comment', postId, body, parentCommentId?, outputFormat: { ok: 'boolean', id: 'string' } }" } ],
+  "markupSketch": "<form><label>Reply to {replying-to}</label><textarea></textarea><div><span>0 / 5,000</span><button>Post reply</button></div></form>"
+}

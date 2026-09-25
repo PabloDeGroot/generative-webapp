@@ -1,0 +1,16 @@
+{
+  "prompt": "Compact word summary for lists: search results, favorites, random picks.",
+  "id": "g-word-card",
+  "shortDesc": "Compact word card for lists and grids (search results, favorites, related words): serif word, italic part of speech, one-line gloss; the whole card links to /word/<word>.",
+  "role": "leaf",
+  "props": [
+    { "name": "word", "type": "string", "required": true, "description": "The word." },
+    { "name": "part-of-speech", "type": "string", "required": false, "description": "e.g. noun." },
+    { "name": "gloss", "type": "string", "required": false, "description": "One-line meaning." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-1 px-4 py-3", "palette": ["#ebdfc5", "#a0721a", "#8a5a3b"], "notes": "Vellum card with a 3px gilt top border. Place several in a grid." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<a class=card href=/word/{word}><b>{word}</b><i>{part-of-speech}</i><span>{gloss}</span></a>"
+}

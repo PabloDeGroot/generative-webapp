@@ -1,0 +1,14 @@
+{
+  "prompt": "A member's profile card.",
+  "id": "g-member-card",
+  "shortDesc": "A member's profile (from GetProfile): avatar (photo or initial), display name, karma, post and comment counts, join date and bio.",
+  "role": "leaf",
+  "props": [
+    { "name": "profile", "type": "json", "required": true, "description": "GetProfile result: { displayName, photoURL?, bio, memberSince, postCount, commentCount, karma }." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid grid-cols-[64px_1fr] gap-4 items-center p-5", "palette": ["#d7e6dd", "#2d6a4c", "#22262b", "#6b7178"], "notes": "64px round avatar with a pine initial on pale green when there's no photo; Archivo 800 name; tabular stats." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div><span class=av>{initial}</span><div><b>{displayName}</b><p>{karma} karma · {posts} posts · {comments} comments · since {date}</p></div><p>{bio}</p></div>"
+}

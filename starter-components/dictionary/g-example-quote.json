@@ -1,0 +1,15 @@
+{
+  "prompt": "Pull quote showing a word used in a real sentence.",
+  "id": "g-example-quote",
+  "shortDesc": "Pull quote with a gilt left rule: a sentence using the word, in large serif italic, with its source underneath.",
+  "role": "leaf",
+  "props": [
+    { "name": "quote", "type": "string", "required": true, "description": "The quoted sentence (without quotation marks)." },
+    { "name": "source", "type": "string", "required": false, "description": "Who said or wrote it, and where/when." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "mx-5 my-4 px-6 py-5", "palette": ["#ebdfc5", "#a0721a", "#8a5a3b"], "notes": "Vellum background, 3px gilt left border, 20px Newsreader italic." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<blockquote><p>“{quote}”</p><cite>{source}</cite></blockquote>"
+}

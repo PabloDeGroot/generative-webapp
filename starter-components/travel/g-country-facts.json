@@ -1,0 +1,14 @@
+{
+  "prompt": "Practical country facts for travellers.",
+  "id": "g-country-facts",
+  "shortDesc": "Grid of practical country facts (capital, currency, languages, calling code, area, neighbours) from a GetCountry / GetDestination.country profile.",
+  "role": "leaf",
+  "props": [
+    { "name": "country", "type": "json", "required": true, "description": "Country profile: { name, flagEmoji, capital[], currencies[{code,name,symbol}], languages[], callingCodes[], areaKm2, borders[{code,name}], region, subregion }." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid grid-cols-2 sm:grid-cols-3 gap-3 p-4", "palette": ["#f2b53a", "#fffaf0", "#5b7385"], "notes": "Each fact on a warm white tile with a 3px sun-yellow left border; small uppercase labels." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div class=grid><div><small>Capital</small><span>Lisbon</span></div>…</div>"
+}

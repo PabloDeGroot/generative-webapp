@@ -21,6 +21,9 @@ import {
     GetAllComponents,
     GetComponents,
     ResetComponents,
+    InstallStarterComponent,
+    ExportComponents,
+    type StarterComponentInput,
     UpdateComponent,
     isRejection,
     type ComponentMutationResult
@@ -820,4 +823,42 @@ export const resetComponents = operatorFunction({}, async (request) => {
         stop({ ok: true, ...result });
         return { summary, ...result };
     });
+});
+
+// Installs hand-defined starter components (starter-components/<toolkit>/, sent by
+// scripts/components.mjs) into the toolkit's shared library. data: { toolkit, components:
+// [{ spec, code?, prompt? }], overwrite? }. Components without code are generated from their spec.
+export const installComponents = operatorFunction({
+    secrets: aiSecrets,
+    timeoutSeconds: 3600
+}, async (request) => {
+    const requestId = (request.rawRequest.headers["x-request-id"] as string | undefined) ?? generateRequestId();
+    return withRequestContext(requestId, { fn: "installComponents", toolkit: currentToolkit().id }, async () => {
+        const components = request.data?.components;
+        if (!Array.isArray(components) || components.length === 0) {
+            throw new HttpsError("invalid-argument", "'components' must be a non-empty array of { spec, code?, prompt? }.");
+        }
+        const overwrite = request.data?.overwrite === true;
+        const results = [];
+        // One at a time: generated components can reference ones installed earlier in the list.
+        for (const component of components as StarterComponentInput[]) {
+            try {
+                results.push(await InstallStarterComponent(component, overwrite));
+            } catch (error) {
+                log.error("starter_install_failed", { id: component?.spec?.id, error });
+                results.push({ id: component?.spec?.id ?? "?", status: "rejected", reason: error instanceof Error ? error.message : "Install failed." });
+            }
+        }
+        return { toolkit: currentToolkit().id, results };
+    });
+});
+
+// Returns library components as starter files (spec, prompt, source) so they can be kept and
+// edited in the repo. data: { toolkit, ids? } — all shared components when ids is omitted.
+export const exportComponents = operatorFunction({}, async (request) => {
+    const ids = request.data?.ids;
+    if (ids !== undefined && !(Array.isArray(ids) && ids.every((i) => typeof i === "string"))) {
+        throw new HttpsError("invalid-argument", "'ids' must be an array of component ids.");
+    }
+    return { toolkit: currentToolkit().id, components: await ExportComponents(ids as string[] | undefined) };
 });

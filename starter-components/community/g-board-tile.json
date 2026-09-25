@@ -1,0 +1,18 @@
+{
+  "prompt": "One discussion board in the board list.",
+  "id": "g-board-tile",
+  "shortDesc": "Tile for one board (from ListBoards): name, description, number of posts and last activity; links to /b/<board-id>. Place several in a grid.",
+  "role": "leaf",
+  "props": [
+    { "name": "board-id", "type": "string", "required": true, "description": "Board id, e.g. questions." },
+    { "name": "name", "type": "string", "required": true, "description": "Board name." },
+    { "name": "description", "type": "string", "required": false, "description": "One-line description." },
+    { "name": "post-count", "type": "number", "required": false, "description": "Number of posts." },
+    { "name": "last-activity", "type": "string", "required": false, "description": "ISO date of the latest activity (ListBoards → lastActivityAt)." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-1 rounded-lg border bg-white px-4 py-3", "palette": ["#ffffff", "#e2e2dc", "#2d6a4c", "#6b7178"], "notes": "White tile, Archivo board name, pine activity line." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<a href=/b/{board-id}><b>{name}</b><span>{description}</span><small>{post-count} posts · active {ago}</small></a>"
+}

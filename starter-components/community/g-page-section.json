@@ -1,0 +1,15 @@
+{
+  "prompt": "Titled block that groups other components on Commons pages.",
+  "id": "g-page-section",
+  "shortDesc": "Titled content block: Archivo heading, optional grey subheading, then child components in its default slot; use it to structure every page.",
+  "role": "layout",
+  "props": [
+    { "name": "heading", "type": "string", "required": false, "description": "Section heading, e.g. a board name." },
+    { "name": "subheading", "type": "string", "required": false, "description": "One line under the heading, e.g. the board description." }
+  ],
+  "slots": [ { "name": "", "description": "Section content.", "accepts": "any components" } ],
+  "styling": { "tailwindClasses": "grid gap-3 px-5 py-6", "palette": ["#22262b", "#6b7178"], "notes": "Archivo 700 24px heading; readable max width around 860px." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<section><h2>{heading}</h2><p>{subheading}</p><slot></slot></section>"
+}

@@ -14,7 +14,9 @@
     "secrets:push": "node scripts/env-sync.mjs push",
     "secrets:set": "node scripts/env-sync.mjs set",
     "secrets:setup": "node scripts/env-sync.mjs setup",
-    "call": "node scripts/call-function.mjs"
+    "call": "node scripts/call-function.mjs",
+    "components:install": "node scripts/components.mjs install",
+    "components:pull": "node scripts/components.mjs pull"
   },
   "overrides": {
     "typescript": "$typescript"
