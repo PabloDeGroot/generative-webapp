@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { lookupWord, type WordEntry } from "./wiktionary";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { createHash } from "node:crypto";
@@ -28,15 +29,6 @@ interface FuseConstructor {
     new(list: readonly string[], options: Record<string, unknown>): FuseIndex;
 }
 
-interface DictionaryApiResponse {
-    code?: string;
-    message?: string;
-    payload?: unknown;
-}
-
-interface DictionaryApiClient {
-    getDefinitionFor(input: { word: string; lang?: string }): Promise<DictionaryApiResponse>;
-}
 
 interface FavoriteWordDocument {
     word?: unknown;
@@ -48,22 +40,14 @@ let cachedWords: string[] | null = null;
 let cachedWordSet: Set<string> | null = null;
 let cachedFuse: FuseIndex | null = null;
 
-export async function GetWord(word: string): Promise<Record<string, unknown>> {
-    const exactWord = await ensureExactWordMatch(word);
-    const dictionaryClient = await getDictionaryApiClient();
-    const dictionaryResponse = await dictionaryClient.getDefinitionFor({ word: exactWord });
-    // Fail loudly rather than returning found: false: a failed tool call is reported as an error
-    // to the page and is never cached as an answer (see the action cache in the SvelteKit server).
-    if (dictionaryResponse.code !== "api-ok") {
-        throw new Error(`No dictionary entry for "${exactWord}" right now (${dictionaryResponse.message ?? dictionaryResponse.code ?? "lookup failed"}).`);
-    }
-
-    return {
-        word: exactWord,
-        exactMatch: true,
-        dictionary: dictionaryResponse,
-        found: dictionaryResponse.code === "api-ok"
-    };
+// Throws when there is no entry, so a failed lookup is reported as an error and never cached
+// as an answer (see the action cache in the SvelteKit server).
+// Wiktionary decides whether a word exists; the local word list only normalises it (it lacks many
+// real words, e.g. petrichor).
+export async function GetWord(word: string): Promise<WordEntry> {
+    const normalized = normalizeWord(word);
+    if (!normalized) throw new Error("Word must be a non-empty string.");
+    return lookupWord(normalized);
 }
 
 export async function SearchWords(query: string, limit = 20): Promise<Record<string, unknown>> {
@@ -285,18 +269,6 @@ async function getFuseIndex(): Promise<FuseIndex> {
     return cachedFuse;
 }
 
-async function getDictionaryApiClient(): Promise<DictionaryApiClient> {
-    const dictionaryModule = await dynamicImport("dictionary-api-client");
-    const getDefinitionFor = dictionaryModule.getDefinitionFor;
-
-    if (typeof getDefinitionFor !== "function") {
-        throw new Error("Could not load dictionary-api-client getDefinitionFor function.");
-    }
-
-    return {
-        getDefinitionFor: getDefinitionFor as DictionaryApiClient["getDefinitionFor"]
-    };
-}
 
 
 

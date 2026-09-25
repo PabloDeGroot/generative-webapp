@@ -1,0 +1,19 @@
+{
+  "prompt": "Main content with a sidebar.",
+  "id": "g-split",
+  "shortDesc": "Commons layout: two columns, main content plus a sidebar (right by default), stacking to one column on phones with the sidebar after the main content. Put the page's primary components in the default slot and supporting ones in slot=\"aside\".",
+  "role": "layout",
+  "props": [
+    { "name": "aside-width", "type": "string", "required": false, "description": "Sidebar width: narrow (280px, default) or wide (360px)." },
+    { "name": "aside-side", "type": "string", "required": false, "description": "left or right (default)." },
+    { "name": "sticky", "type": "boolean", "required": false, "description": "Present to keep the sidebar in view while the main column scrolls." }
+  ],
+  "slots": [
+    { "name": "", "description": "Main content.", "accepts": "any components" },
+    { "name": "aside", "description": "Sidebar content.", "accepts": "any components" }
+  ],
+  "styling": { "tailwindClasses": "grid md:grid-cols-[1fr_280px] gap-6 px-5 py-4", "palette": [], "notes": "Neutral; stacks below 860px." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div class=split><main><slot></slot></main><aside><slot name=aside></slot></aside></div>"
+}

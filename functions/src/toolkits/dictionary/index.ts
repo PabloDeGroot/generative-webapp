@@ -20,7 +20,7 @@ export const dictionaryToolkit: DomainToolkit = {
     tools: [
         {
             name: "GetWord",
-            description: "Returns metadata for one exact dictionary word match.",
+            description: "Looks up one word in Wiktionary: its senses grouped by part of speech (each definition with an optional example), synonyms and antonyms per part of speech, IPA pronunciation, syllables and origin. Fails when there is no English entry.",
             inputSchema: { word: z.string() },
             readOnly: true,
             handler: async ({ word }: { word: string }) => GetWord(word)

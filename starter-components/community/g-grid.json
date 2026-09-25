@@ -1,0 +1,15 @@
+{
+  "prompt": "Responsive grid for cards and tiles.",
+  "id": "g-grid",
+  "shortDesc": "Commons layout: responsive grid that lays out its children (cards, tiles, list items) in as many columns as fit, each at least min-width wide; one column on phones. Use it for any group of cards instead of building a grid.",
+  "role": "layout",
+  "props": [
+    { "name": "min-width", "type": "number", "required": false, "description": "Minimum column width in px (default 220). Smaller = more columns." },
+    { "name": "gap", "type": "string", "required": false, "description": "Space between items: tight, normal (default) or loose." }
+  ],
+  "slots": [ { "name": "", "description": "The items to lay out.", "accepts": "any components, typically cards or tiles" } ],
+  "styling": { "tailwindClasses": "grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 px-5 py-3", "palette": [], "notes": "Neutral: no colours of its own; items stretch to equal height per row." },
+  "dependencies": [],
+  "interactions": [],
+  "markupSketch": "<div class=grid style='--min:220px'><slot></slot></div>"
+}
