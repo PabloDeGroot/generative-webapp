@@ -17,26 +17,62 @@ a { color: inherit; }
 :focus-visible { outline: 2px solid var(--sea); outline-offset: 2px; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }`;
 
+// Data too large or structured for attributes is fetched by the component itself through the site's
+// action runner (POST with an intent). Identical reads on one page share a single request, and the
+// server caches read results, so repeat visits don't run the LLM again.
+const componentReads = (window.__gComponentReads ??= new Map());
+async function postJson(route, body) {
+  const res = await fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = null;
+  try { data = await res.json(); } catch { /* no JSON body */ }
+  if (!res.ok || (data && data.ok === false)) {
+    throw new Error(res.status === 401 ? "Sign in to see this." : (data && (data.message || data.error)) || "Couldn\x27t load this.");
+  }
+  return data;
+}
+function readAction(route, body) {
+  const key = `${route} ${JSON.stringify(body)}`;
+  if (!componentReads.has(key)) componentReads.set(key, postJson(route, body).catch((err) => { componentReads.delete(key); throw err; }));
+  return componentReads.get(key);
+}
+// Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
+// result arrives under data.
+const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
 const PREFERRED = ["Understand", "Get in", "Get around", "See", "Do", "Eat", "Drink", "Sleep", "Stay safe"];
+const GUIDE_FORMAT = { title: "string", section: "string", text: "string", availableSections: ["string"], url: "string" };
 
 class GGuideExcerpt extends HTMLElement {
-  static get observedAttributes() { return ["place", "section", "text", "sections", "source-url"]; }
+  static get observedAttributes() { return ["place", "section"]; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._state = { status: "loading" };
   }
   connectedCallback() {
     loadFonts();
+    this.load();
+  }
+  attributeChangedCallback() { if (this.isConnected) this.load(); }
+  async load() {
+    const place = this.getAttribute("place");
+    const section = this.getAttribute("section");
+    if (!place || !section) return;
+    this._state = { status: "loading" }; this.render();
+    try {
+      const slug = section.toLowerCase().replace(/\s+/g, "-");
+      const res = await readAction(`/guide/${encodeURIComponent(place)}/${encodeURIComponent(slug)}`, { intent: "get a travel guide section", place, section, outputFormat: GUIDE_FORMAT });
+      this._state = { status: "ready", text: field(res, "text") || "", sections: field(res, "availableSections") || [], url: field(res, "url") || "" };
+    } catch (err) {
+      this._state = { status: "error", message: err.message };
+    }
     this.render();
   }
-  attributeChangedCallback() { if (this.isConnected) this.render(); }
   render() {
     const place = this.getAttribute("place") || "";
     const section = this.getAttribute("section") || "";
-    const available = json(this.getAttribute("sections"), []);
-    const tabs = (available.length ? PREFERRED.filter((s) => available.includes(s)) : PREFERRED).slice(0, 8);
-    const paragraphs = (this.getAttribute("text") || "").split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-    const source = this.getAttribute("source-url");
+    const { status, text = "", sections = [], url, message } = this._state;
+    const tabs = (sections.length ? PREFERRED.filter((s) => sections.includes(s)) : PREFERRED).slice(0, 8);
+    const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
     const slug = (s) => encodeURIComponent(s.toLowerCase().replace(/\s+/g, "-"));
     this.shadowRoot.innerHTML = `<style>${TOKENS}
       .wrap { display: grid; gap: 14px; padding: 16px; }
@@ -46,11 +82,13 @@ class GGuideExcerpt extends HTMLElement {
       nav a.on { background: var(--sea); border-color: var(--sea); color: #fff; }
       .text { display: grid; gap: 10px; }
       p { margin: 0; font-size: 15px; line-height: 1.65; max-width: 64ch; }
+      .note { color: var(--soft); }
       .src { color: var(--sea); font-weight: 700; font-size: 13px; text-decoration: none; }
     </style>
-    <div class="wrap"><nav aria-label="Guide sections">${tabs.map((s) => `<a href="/guide/${encodeURIComponent(place.toLowerCase())}/${slug(s)}" class="${s.toLowerCase() === section.toLowerCase() ? "on" : ""}">${esc(s)}</a>`).join("")}</nav>
-      <div class="text">${paragraphs.map((p) => `<p>${esc(p)}</p>`).join("") || "<p>No guide text for this section.</p>"}</div>
-      ${source ? `<a class="src" href="${esc(source)}" target="_blank" rel="noopener">Read the full guide on Wikivoyage →</a>` : ""}</div>`;
+    <div class="wrap" aria-busy="${status === "loading"}"><nav aria-label="Guide sections">${tabs.map((s) => `<a href="/guide/${encodeURIComponent(place.toLowerCase())}/${slug(s)}" class="${s.toLowerCase() === section.toLowerCase() ? "on" : ""}">${esc(s)}</a>`).join("")}</nav>
+      <div class="text">${status === "loading" ? `<p class="note">Opening the guide…</p>` : status === "error" ? `<p class="note">${esc(message)}</p>`
+        : paragraphs.map((p) => `<p>${esc(p)}</p>`).join("") || `<p class="note">This guide has no ${esc(section)} section yet.</p>`}</div>
+      ${url ? `<a class="src" href="${esc(url)}" target="_blank" rel="noopener">Read the full guide on Wikivoyage →</a>` : ""}</div>`;
   }
 }
 customElements.define("g-guide-excerpt", GGuideExcerpt);

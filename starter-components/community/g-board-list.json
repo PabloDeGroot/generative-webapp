@@ -1,0 +1,12 @@
+{
+  "prompt": "Grid of all boards.",
+  "id": "g-board-list",
+  "shortDesc": "Grid of all discussion boards as tiles with descriptions and activity. Takes no data: it loads the boards itself. Use on the home page and /boards.",
+  "role": "leaf",
+  "props": [],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3 p-4", "palette": ["#6b7178"], "notes": "Responsive grid of g-board-tile." },
+  "dependencies": [ { "id": "g-board-tile", "usage": "One tile per board." } ],
+  "interactions": [ { "trigger": "component mounts", "method": "POST", "route": "/boards", "bodyShape": "{ intent: 'list boards', outputFormat: { boards: [{ id, name, description, postCount, lastActivityAt }] } }" } ],
+  "markupSketch": "<div class=grid><g-board-tile board-id name description post-count last-activity></g-board-tile>…</div>"
+}

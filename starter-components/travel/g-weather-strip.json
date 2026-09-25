@@ -1,15 +1,16 @@
 {
-  "prompt": "Day-by-day weather tiles.",
+  "prompt": "Day-by-day weather tiles for a place.",
   "id": "g-weather-strip",
-  "shortDesc": "Row of daily weather tiles (icon, high/low in °C, chance of rain); today is highlighted. Takes the days array from GetWeather or GetDestination.forecast, and shows the source note (e.g. last year's weather) when given.",
+  "shortDesc": "Row of daily weather tiles for a place (icon, high/low in °C, chance of rain; today highlighted). Give it the place, plus start-date and end-date for specific dates (defaults to the next 7 days); it fetches the weather itself and notes when it shows last year's weather instead of a forecast.",
   "role": "leaf",
   "props": [
-    { "name": "days", "type": "json", "required": true, "description": "Array of { date, summary, weatherCode, tempMaxC, tempMinC, precipitationChance?, precipitationMm? } (GetWeather days / GetDestination forecast)." },
-    { "name": "note", "type": "string", "required": false, "description": "Source note, e.g. \"Beyond the forecast range: weather on the same dates last year\"." }
+    { "name": "place", "type": "string", "required": true, "description": "City or place, e.g. \"Porto\" or \"Porto, Portugal\"." },
+    { "name": "start-date", "type": "string", "required": false, "description": "First day, YYYY-MM-DD." },
+    { "name": "end-date", "type": "string", "required": false, "description": "Last day, YYYY-MM-DD." }
   ],
   "slots": [],
   "styling": { "tailwindClasses": "grid grid-flow-col auto-cols-[minmax(76px,1fr)] gap-2 p-4 overflow-x-auto", "palette": ["#e6f2f6", "#13293d", "#0d6f78"], "notes": "Sky tiles, today in harbour navy with white text; DM Mono temperatures." },
   "dependencies": [],
-  "interactions": [],
+  "interactions": [ { "trigger": "component mounts", "method": "POST", "route": "/weather/{place}", "bodyShape": "{ intent: 'get the daily weather', place, startDate?, endDate?, outputFormat: { note, days: [{ date, summary, weatherCode, tempMaxC, tempMinC, precipitationChance }] } }" } ],
   "markupSketch": "<div><div class=day><b>Today</b><span>☀️</span><span>27° 17°</span><span>0%</span></div>…<p>{note}</p></div>"
 }

@@ -1,0 +1,18 @@
+{
+  "prompt": "List of posts for home, board, tag and member pages.",
+  "id": "g-post-list",
+  "shortDesc": "List of posts as rows with votes, optionally for one board, tag or author, sorted hot (default), new, top or active. Takes only filters: it loads the posts itself. Use on the home page, /b/<board>, tag and profile pages.",
+  "role": "leaf",
+  "props": [
+    { "name": "board", "type": "string", "required": false, "description": "Board id: general, show-and-tell, questions, ideas or off-topic." },
+    { "name": "sort", "type": "string", "required": false, "description": "hot (default), new, top or active." },
+    { "name": "tag", "type": "string", "required": false, "description": "Only posts with this tag." },
+    { "name": "author-id", "type": "string", "required": false, "description": "Only posts by this member (user id)." },
+    { "name": "limit", "type": "number", "required": false, "description": "How many posts, default 20." }
+  ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-2 p-4", "palette": ["#6b7178"], "notes": "Stack of g-post-row with 8px gaps; plain empty state." },
+  "dependencies": [ { "id": "g-post-row", "usage": "One row per post." } ],
+  "interactions": [ { "trigger": "component mounts", "method": "POST", "route": "/b/{board} (or / without a board)", "bodyShape": "{ intent: 'list posts', board?, sort, tag?, authorId?, limit, outputFormat: { posts: [{ id, boardId, title, author: { displayName }, createdAt, score, commentCount, myVote }] } }" } ],
+  "markupSketch": "<div><g-post-row post-id title board author created-at score comment-count my-vote></g-post-row>…</div>"
+}

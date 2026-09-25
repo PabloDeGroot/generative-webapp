@@ -1,14 +1,12 @@
 {
   "prompt": "Practical country facts for travellers.",
   "id": "g-country-facts",
-  "shortDesc": "Grid of practical country facts (capital, currency, languages, calling code, area, neighbours) from a GetCountry / GetDestination.country profile.",
+  "shortDesc": "Grid of practical facts about a country (capital, currency, languages, calling code, area, neighbours). Give it the country name or ISO code; it fetches the facts itself.",
   "role": "leaf",
-  "props": [
-    { "name": "country", "type": "json", "required": true, "description": "Country profile: { name, flagEmoji, capital[], currencies[{code,name,symbol}], languages[], callingCodes[], areaKm2, borders[{code,name}], region, subregion }." }
-  ],
+  "props": [ { "name": "country", "type": "string", "required": true, "description": "Country name or ISO code, e.g. \"Portugal\" or \"PT\"." } ],
   "slots": [],
   "styling": { "tailwindClasses": "grid grid-cols-2 sm:grid-cols-3 gap-3 p-4", "palette": ["#f2b53a", "#fffaf0", "#5b7385"], "notes": "Each fact on a warm white tile with a 3px sun-yellow left border; small uppercase labels." },
   "dependencies": [],
-  "interactions": [],
+  "interactions": [ { "trigger": "component mounts", "method": "POST", "route": "/country/{country}", "bodyShape": "{ intent: 'get country facts', country, outputFormat: { name, capital: [], currencies: [{ code, symbol }], languages: [], callingCodes: [], areaKm2, borders: [{ name }], region } }" } ],
   "markupSketch": "<div class=grid><div><small>Capital</small><span>Lisbon</span></div>…</div>"
 }

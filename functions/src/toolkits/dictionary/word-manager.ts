@@ -52,6 +52,11 @@ export async function GetWord(word: string): Promise<Record<string, unknown>> {
     const exactWord = await ensureExactWordMatch(word);
     const dictionaryClient = await getDictionaryApiClient();
     const dictionaryResponse = await dictionaryClient.getDefinitionFor({ word: exactWord });
+    // Fail loudly rather than returning found: false: a failed tool call is reported as an error
+    // to the page and is never cached as an answer (see the action cache in the SvelteKit server).
+    if (dictionaryResponse.code !== "api-ok") {
+        throw new Error(`No dictionary entry for "${exactWord}" right now (${dictionaryResponse.message ?? dictionaryResponse.code ?? "lookup failed"}).`);
+    }
 
     return {
         word: exactWord,

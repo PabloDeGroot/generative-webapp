@@ -1,14 +1,15 @@
 {
   "prompt": "Numbered senses of a word with usage examples.",
   "id": "g-definition-list",
-  "shortDesc": "Numbered list of a word's senses in serif type, each with an optional italic usage example.",
+  "shortDesc": "Numbered senses of a word in serif type, each with an optional italic usage example. Just give it the word: it looks up the definitions itself (optionally only one part of speech).",
   "role": "leaf",
   "props": [
-    { "name": "definitions", "type": "json", "required": true, "description": "Array of { text, example? } (plain strings also accepted), in sense order." }
+    { "name": "word", "type": "string", "required": true, "description": "The word to define, e.g. serendipity." },
+    { "name": "part-of-speech", "type": "string", "required": false, "description": "Only show senses for this part of speech, e.g. noun." }
   ],
   "slots": [],
-  "styling": { "tailwindClasses": "grid gap-4 px-5 py-4", "palette": ["#3b2a1e", "#8a5a3b", "#a0721a"], "notes": "Gilt sense numbers; 18px Newsreader text; sepia italic examples." },
+  "styling": { "tailwindClasses": "grid gap-4 px-5 py-4", "palette": ["#3b2a1e", "#8a5a3b", "#a0721a"], "notes": "Gilt sense numbers; 18px Newsreader text; sepia italic examples; small italic part-of-speech label per group." },
   "dependencies": [],
-  "interactions": [],
-  "markupSketch": "<ol><li><span>1</span><p>{text}</p><p class=ex>{example}</p></li></ol>"
+  "interactions": [ { "trigger": "component mounts", "method": "POST", "route": "/word/{word}", "bodyShape": "{ intent: 'look up a word', word, outputFormat: { word, phonetic, origin, meanings: [{ partOfSpeech, definitions: [{ text, example }], synonyms: [], antonyms: [] }] } }" } ],
+  "markupSketch": "<div><i>noun</i><ol><li><span>1</span><p>{text}</p><p class=ex>{example}</p></li></ol></div>"
 }

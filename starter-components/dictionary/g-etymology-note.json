@@ -1,15 +1,15 @@
 {
-  "prompt": "A word's history shown as a chain of stages.",
+  "prompt": "A word's history.",
   "id": "g-etymology-note",
-  "shortDesc": "Word origin as a left-to-right chain of stages (oldest first), each with a form and a short note; falls back to a plain paragraph when only text is given.",
+  "shortDesc": "Where a word comes from, under an \"Origin\" label. Give it the word and it looks up the origin itself; or pass a short origin sentence in text when you already have it.",
   "role": "leaf",
   "props": [
-    { "name": "stages", "type": "json", "required": false, "description": "Array of { form, note }, oldest first, e.g. [{ form: 'Sarandīp', note: 'Persian · Sri Lanka' }]." },
-    { "name": "text", "type": "string", "required": false, "description": "Plain origin text, used when stages aren't available." }
+    { "name": "word", "type": "string", "required": false, "description": "The word whose origin to look up." },
+    { "name": "text", "type": "string", "required": false, "description": "Origin sentence to show instead of looking it up." }
   ],
   "slots": [],
-  "styling": { "tailwindClasses": "grid gap-3 px-5 py-4", "palette": ["#ebdfc5", "#d6c3a0", "#8a5a3b", "#a0721a"], "notes": "Vellum stage boxes with a rule border, gilt arrows, mono notes." },
+  "styling": { "tailwindClasses": "grid gap-3 px-5 py-4", "palette": ["#ebdfc5", "#d6c3a0", "#8a5a3b", "#a0721a"], "notes": "Mono uppercase label; Newsreader paragraph on a vellum panel with a gilt left rule." },
   "dependencies": [],
-  "interactions": [],
-  "markupSketch": "<div><span class=eyebrow>Origin</span><div class=chain><span>{form}<small>{note}</small></span> → …</div></div>"
+  "interactions": [ { "trigger": "component mounts (when word is set and text isn't)", "method": "POST", "route": "/word/{word}", "bodyShape": "{ intent: 'look up a word', word, outputFormat: { word, phonetic, origin, meanings: [...] } }" } ],
+  "markupSketch": "<div><span class=eyebrow>Origin</span><p>{origin}</p></div>"
 }

@@ -59,32 +59,37 @@ function readAction(route, body) {
 // Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
 // result arrives under data.
 const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
-class GPostRow extends HTMLElement {
-  static get observedAttributes() { return ["post-id", "title", "board", "author", "created-at", "score", "comment-count", "my-vote"]; }
+const BOARDS_FORMAT = { boards: [{ id: "string", name: "string", description: "string", postCount: "number", lastActivityAt: "string" }] };
+
+class GBoardList extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._state = { status: "loading" };
   }
   connectedCallback() {
     loadFonts();
+    this.load();
+  }
+  async load() {
+    this._state = { status: "loading" }; this.render();
+    try {
+      const res = await readAction("/boards", { intent: "list boards", outputFormat: BOARDS_FORMAT });
+      const boards = field(res, "boards") ?? (Array.isArray(res?.data) ? res.data : []);
+      this._state = { status: "ready", boards };
+    } catch (err) {
+      this._state = { status: "error", message: err.message };
+    }
     this.render();
   }
-  attributeChangedCallback() { if (this.isConnected) this.render(); }
   render() {
-    const id = this.getAttribute("post-id") || "";
-    const board = this.getAttribute("board");
-    const comments = Number(this.getAttribute("comment-count")) || 0;
-    const created = this.getAttribute("created-at");
+    const { status, boards = [], message } = this._state;
     this.shadowRoot.innerHTML = `<style>${TOKENS}
-      article { display: grid; grid-template-columns: 44px 1fr; gap: 10px; background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px 10px 4px; }
-      .title { font: 700 16px/1.3 var(--display); text-decoration: none; overflow-wrap: anywhere; }
-      .title:hover { color: var(--pine); }
-      .meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; font-size: 12.5px; color: var(--soft); }
-      .meta a { text-decoration: none; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; padding: 16px; }
+      p { margin: 0; padding: 16px; color: var(--soft); font-size: 15px; }
     </style>
-    <article><g-vote-control post-id="${esc(id)}" score="${esc(this.getAttribute("score") || 0)}" my-vote="${esc(this.getAttribute("my-vote") || 0)}"></g-vote-control>
-      <div><a class="title" href="/post/${encodeURIComponent(id)}">${esc(this.getAttribute("title"))}</a>
-        <div class="meta">${board ? `<a class="tag" href="/b/${encodeURIComponent(board)}">${esc(board)}</a>` : ""}<span>by ${esc(this.getAttribute("author") || "unknown")}</span>${created ? `<span>${esc(ago(created))}</span>` : ""}<a href="/post/${encodeURIComponent(id)}#comments">${comments} comment${comments === 1 ? "" : "s"}</a></div></div></article>`;
+    ${status === "loading" ? `<p>Loading boards…</p>` : status === "error" ? `<p>${esc(message)}</p>`
+      : `<div class="grid">${boards.map((b) => `<g-board-tile board-id="${esc(b.id)}" name="${esc(b.name)}" description="${esc(b.description)}" post-count="${esc(b.postCount ?? 0)}"${b.lastActivityAt ? ` last-activity="${esc(b.lastActivityAt)}"` : ""}></g-board-tile>`).join("")}</div>`}`;
   }
 }
-customElements.define("g-post-row", GPostRow);
+customElements.define("g-board-list", GBoardList);

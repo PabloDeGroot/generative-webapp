@@ -38,36 +38,70 @@ a { color: inherit; }
 .tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 4px; background: var(--pine-tint); color: var(--pine); text-decoration: none; }
 .error { color: #b3381a; font-size: 13px; margin: 0; }`;
 
+// Data too large or structured for attributes is fetched by the component itself through the site's
+// action runner (POST with an intent). Identical reads on one page share a single request, and the
+// server caches read results, so repeat visits don't run the LLM again.
+const componentReads = (window.__gComponentReads ??= new Map());
+async function postJson(route, body) {
+  const res = await fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = null;
+  try { data = await res.json(); } catch { /* no JSON body */ }
+  if (!res.ok || (data && data.ok === false)) {
+    throw new Error(res.status === 401 ? "Sign in to see this." : (data && (data.message || data.error)) || "Couldn\x27t load this.");
+  }
+  return data;
+}
+function readAction(route, body) {
+  const key = `${route} ${JSON.stringify(body)}`;
+  if (!componentReads.has(key)) componentReads.set(key, postJson(route, body).catch((err) => { componentReads.delete(key); throw err; }));
+  return componentReads.get(key);
+}
+// Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
+// result arrives under data.
+const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
+const POST_FORMAT = { post: { id: "string", boardId: "string", title: "string", body: "string", tags: ["string"], author: { displayName: "string" }, createdAt: "string", edited: "boolean", score: "number", commentCount: "number", myVote: "number", mine: "boolean" }, comments: [{ id: "string", body: "string", author: { displayName: "string" }, createdAt: "string", edited: "boolean", score: "number", deleted: "boolean", myVote: "number", mine: "boolean", replies: ["comments of the same shape"] }] };
+const postRequest = (postId) => readAction(`/post/${encodeURIComponent(postId)}`, { intent: "get a post with its comments", postId, outputFormat: POST_FORMAT });
+
 class GPostView extends HTMLElement {
-  static get observedAttributes() { return ["post"]; }
+  static get observedAttributes() { return ["post-id"]; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._state = { status: "loading" };
     this._mode = "view"; // view | edit | confirm-delete
     this._busy = false;
     this._error = "";
   }
   connectedCallback() {
     loadFonts();
+    this.load();
+  }
+  attributeChangedCallback() { if (this.isConnected) this.load(); }
+  async load() {
+    const postId = this.getAttribute("post-id");
+    if (!postId) return;
+    this._state = { status: "loading" }; this.render();
+    try {
+      const res = await postRequest(postId);
+      this._state = { status: "ready", p: field(res, "post") || {} };
+    } catch (err) {
+      this._state = { status: "error", message: err.message };
+    }
     this.render();
   }
-  attributeChangedCallback() { if (this.isConnected) this.render(); }
   async act(body, then) {
-    const p = json(this.getAttribute("post"), {}) || {};
+    const postId = this.getAttribute("post-id");
     this._busy = true; this._error = ""; this.render();
     try {
-      await postAction(`/post/${encodeURIComponent(p.id)}`, { postId: p.id, outputFormat: { ok: "boolean" }, ...body });
+      await postAction(`/post/${encodeURIComponent(postId)}`, { postId, outputFormat: { ok: "boolean" }, ...body });
       then();
     } catch (err) {
       this._busy = false; this._error = err.message; this.render();
     }
   }
   render() {
-    const p = json(this.getAttribute("post"), {}) || {};
-    const paragraphs = String(p.body || "").split(/\n{2,}/).filter((x) => x.trim());
-    const comments = Number(p.commentCount) || 0;
-    const editing = this._mode === "edit";
-    this.shadowRoot.innerHTML = `<style>${TOKENS}
+    const { status, p = {}, message } = this._state;
+    const style = `<style>${TOKENS}
       article { display: grid; gap: 12px; background: var(--card); padding: 20px; border-radius: 8px; }
       h1 { margin: 0; font: 800 28px/1.2 var(--display); letter-spacing: -0.01em; text-wrap: balance; overflow-wrap: anywhere; }
       .meta { color: var(--soft); font-size: 13px; margin: 0; }
@@ -82,8 +116,17 @@ class GPostView extends HTMLElement {
       textarea { min-height: 160px; resize: vertical; }
       .btn { font: 700 14px var(--display); color: #fff; background: var(--pine); border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
       .btn.red { background: #b3381a; }
-    </style>
-    <article>${p.boardId ? `<a class="tag" href="/b/${encodeURIComponent(p.boardId)}" style="justify-self:start">${esc(p.board?.name || p.boardId)}</a>` : ""}
+      .note { color: var(--soft); margin: 0; }
+    </style>`;
+    if (status !== "ready") {
+      this.shadowRoot.innerHTML = `${style}<article aria-busy="${status === "loading"}"><p class="note">${status === "loading" ? "Loading the post…" : esc(message)}</p></article>`;
+      return;
+    }
+    const paragraphs = String(p.body || "").split(/\n{2,}/).filter((x) => x.trim());
+    const comments = Number(p.commentCount) || 0;
+    const editing = this._mode === "edit";
+    this.shadowRoot.innerHTML = `${style}
+    <article>${p.boardId ? `<a class="tag" href="/b/${encodeURIComponent(p.boardId)}" style="justify-self:start">${esc(p.boardId)}</a>` : ""}
       ${editing ? `<input id="edit-title" value="${esc(p.title)}" maxlength="200" aria-label="Title"><textarea id="edit-body" maxlength="10000" aria-label="Post">${esc(p.body)}</textarea>`
         : `<h1>${esc(p.title)}</h1><p class="meta">${esc(p.author?.displayName || "unknown")} · ${esc(ago(p.createdAt))}${p.edited ? " · edited" : ""}</p>
            <div class="body">${paragraphs.map((x) => `<p>${esc(x)}</p>`).join("")}</div>`}

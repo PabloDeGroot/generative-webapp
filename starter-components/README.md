@@ -30,6 +30,21 @@ keep props in private fields such as `this._title`.
 **Spec only** — just `<id>.json`. The code is generated from your spec by the codegen and evaluator
 phases; the LLM designer is skipped, so structure, props and styling are exactly what you wrote.
 
+## Keep props semantic
+
+The page designer writes components into HTML, so every prop should be something it can type
+without copying data around: identifiers and short text (`word="serendipity"`, `trip-id="…"`,
+`board="questions"`, `heading="…"`). Never a JSON blob of records.
+
+- **Small, flat data** goes in plain attributes (`title`, `score`, `author`, `created-at`…).
+- **Anything large or structured** (definitions, weather, a comment tree, a trip plan) is fetched by
+  the component itself on mount: `POST` to a descriptive route with an `intent` and an
+  `outputFormat` (the action runner calls the tools and shapes the answer). Read results are cached on
+  the server, and identical reads on one page share a request (`readAction` in the existing kits), so
+  components needing the same data should send exactly the same body.
+- **Lists** get their own component that fetches the list and renders row components with flat
+  attributes (`g-post-list` → `g-post-row`).
+
 ## `<id>.json`
 
 Only `id` and `shortDesc` are required; everything else defaults to empty. The page designer and

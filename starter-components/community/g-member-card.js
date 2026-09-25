@@ -38,21 +38,57 @@ a { color: inherit; }
 .tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 4px; background: var(--pine-tint); color: var(--pine); text-decoration: none; }
 .error { color: #b3381a; font-size: 13px; margin: 0; }`;
 
+// Data too large or structured for attributes is fetched by the component itself through the site's
+// action runner (POST with an intent). Identical reads on one page share a single request, and the
+// server caches read results, so repeat visits don't run the LLM again.
+const componentReads = (window.__gComponentReads ??= new Map());
+async function postJson(route, body) {
+  const res = await fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = null;
+  try { data = await res.json(); } catch { /* no JSON body */ }
+  if (!res.ok || (data && data.ok === false)) {
+    throw new Error(res.status === 401 ? "Sign in to see this." : (data && (data.message || data.error)) || "Couldn\x27t load this.");
+  }
+  return data;
+}
+function readAction(route, body) {
+  const key = `${route} ${JSON.stringify(body)}`;
+  if (!componentReads.has(key)) componentReads.set(key, postJson(route, body).catch((err) => { componentReads.delete(key); throw err; }));
+  return componentReads.get(key);
+}
+// Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
+// result arrives under data.
+const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
+const PROFILE_FORMAT = { displayName: "string", photoURL: "string", bio: "string", memberSince: "string", postCount: "number", commentCount: "number", karma: "number" };
+
 class GMemberCard extends HTMLElement {
-  static get observedAttributes() { return ["profile"]; }
+  static get observedAttributes() { return ["user-id"]; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._state = { status: "loading" };
   }
   connectedCallback() {
     loadFonts();
+    this.load();
+  }
+  attributeChangedCallback() { if (this.isConnected) this.load(); }
+  async load() {
+    const userId = this.getAttribute("user-id") || undefined;
+    this._state = { status: "loading" }; this.render();
+    try {
+      const res = await readAction(`/u/${encodeURIComponent(userId || "me")}`, { intent: "get a member profile", userId, outputFormat: PROFILE_FORMAT });
+      const p = res && typeof res === "object" ? (res.displayName ? res : res.data || {}) : {};
+      this._state = { status: "ready", p };
+    } catch (err) {
+      this._state = { status: "error", message: err.message };
+    }
     this.render();
   }
-  attributeChangedCallback() { if (this.isConnected) this.render(); }
   render() {
-    const p = json(this.getAttribute("profile"), {}) || {};
-    const name = p.displayName || "Member";
-    const initial = name.replace(/&[a-z#0-9]+;/gi, "").trim().charAt(0).toUpperCase() || "?";
+    const { status, p = {}, message } = this._state;
+    const name = p.displayName || (status === "ready" ? "Member" : "");
+    const initial = name.replace(/&[a-z#0-9]+;/gi, "").trim().charAt(0).toUpperCase() || "·";
     const since = p.memberSince ? new Date(p.memberSince).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : "";
     const photo = typeof p.photoURL === "string" && /^https:\/\//.test(p.photoURL) ? p.photoURL : "";
     this.shadowRoot.innerHTML = `<style>${TOKENS}
@@ -63,10 +99,12 @@ class GMemberCard extends HTMLElement {
       .stats { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--soft); margin-top: 4px; }
       .stats strong { color: var(--ink); font-variant-numeric: tabular-nums; }
       .bio { grid-column: 1 / -1; margin: 0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+      .note { color: var(--soft); font-size: 14px; }
     </style>
-    <div class="card"><span class="av">${photo ? `<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer">` : esc(initial)}</span>
-      <div><b>${esc(name)}</b><div class="stats"><span><strong>${Number(p.karma) || 0}</strong> karma</span><span><strong>${Number(p.postCount) || 0}</strong> posts</span><span><strong>${Number(p.commentCount) || 0}</strong> comments</span>${since ? `<span>since ${esc(since)}</span>` : ""}</div></div>
-      ${p.bio ? `<p class="bio">${esc(p.bio)}</p>` : ""}</div>`;
+    <div class="card" aria-busy="${status === "loading"}"><span class="av">${photo ? `<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer">` : esc(initial)}</span>
+      ${status === "loading" ? `<span class="note">Loading profile…</span>` : status === "error" ? `<span class="note">${esc(message)}</span>`
+        : `<div><b>${esc(name)}</b><div class="stats"><span><strong>${Number(p.karma) || 0}</strong> karma</span><span><strong>${Number(p.postCount) || 0}</strong> posts</span><span><strong>${Number(p.commentCount) || 0}</strong> comments</span>${since ? `<span>since ${esc(since)}</span>` : ""}</div></div>
+      ${p.bio ? `<p class="bio">${esc(p.bio)}</p>` : ""}`}</div>`;
   }
 }
 customElements.define("g-member-card", GMemberCard);

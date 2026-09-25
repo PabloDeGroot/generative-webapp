@@ -59,32 +59,52 @@ function readAction(route, body) {
 // Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
 // result arrives under data.
 const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
-class GPostRow extends HTMLElement {
-  static get observedAttributes() { return ["post-id", "title", "board", "author", "created-at", "score", "comment-count", "my-vote"]; }
+const NOTIFICATIONS_FORMAT = { unread: "number", notifications: [{ id: "string", type: "string", postId: "string", postTitle: "string", commentId: "string", fromName: "string", excerpt: "string", createdAt: "string", read: "boolean" }] };
+
+class GNotificationList extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._state = { status: "loading" };
+    this._busy = false;
   }
   connectedCallback() {
     loadFonts();
+    this.load();
+  }
+  async load() {
+    this._state = { status: "loading" }; this.render();
+    try {
+      const res = await readAction("/notifications", { intent: "list my notifications", outputFormat: NOTIFICATIONS_FORMAT });
+      this._state = { status: "ready", unread: Number(field(res, "unread")) || 0, list: field(res, "notifications") || [] };
+    } catch (err) {
+      this._state = { status: "error", message: err.message };
+    }
     this.render();
   }
-  attributeChangedCallback() { if (this.isConnected) this.render(); }
+  async markAllRead() {
+    this._busy = true; this.render();
+    try {
+      await postAction("/notifications", { intent: "mark all my notifications as read", outputFormat: { ok: "boolean" } });
+      location.reload();
+    } catch (err) {
+      this._busy = false; this._state = { ...this._state, error: err.message }; this.render();
+    }
+  }
   render() {
-    const id = this.getAttribute("post-id") || "";
-    const board = this.getAttribute("board");
-    const comments = Number(this.getAttribute("comment-count")) || 0;
-    const created = this.getAttribute("created-at");
+    const { status, unread = 0, list = [], message, error } = this._state;
     this.shadowRoot.innerHTML = `<style>${TOKENS}
-      article { display: grid; grid-template-columns: 44px 1fr; gap: 10px; background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px 10px 4px; }
-      .title { font: 700 16px/1.3 var(--display); text-decoration: none; overflow-wrap: anywhere; }
-      .title:hover { color: var(--pine); }
-      .meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; font-size: 12.5px; color: var(--soft); }
-      .meta a { text-decoration: none; }
+      .wrap { display: grid; gap: 8px; padding: 12px 16px; }
+      header { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--soft); }
+      button { background: none; border: 0; font: 700 13px var(--display); color: var(--pine); cursor: pointer; padding: 0; }
+      p { margin: 0; color: var(--soft); font-size: 15px; }
     </style>
-    <article><g-vote-control post-id="${esc(id)}" score="${esc(this.getAttribute("score") || 0)}" my-vote="${esc(this.getAttribute("my-vote") || 0)}"></g-vote-control>
-      <div><a class="title" href="/post/${encodeURIComponent(id)}">${esc(this.getAttribute("title"))}</a>
-        <div class="meta">${board ? `<a class="tag" href="/b/${encodeURIComponent(board)}">${esc(board)}</a>` : ""}<span>by ${esc(this.getAttribute("author") || "unknown")}</span>${created ? `<span>${esc(ago(created))}</span>` : ""}<a href="/post/${encodeURIComponent(id)}#comments">${comments} comment${comments === 1 ? "" : "s"}</a></div></div></article>`;
+    <div class="wrap" aria-busy="${status === "loading"}">${status === "loading" ? `<p>Loading notifications…</p>` : status === "error" ? `<p>${esc(message)}</p>` : `
+      <header><span>${unread ? `${unread} unread` : "All caught up"}</span>${unread ? `<button type="button" ${this._busy ? "disabled" : ""}>${this._busy ? "Marking…" : "Mark all read"}</button>` : ""}</header>
+      ${list.length ? list.map((n) => `<g-notification-item type="${esc(n.type)}" from-name="${esc(n.fromName)}" post-id="${esc(n.postId)}" post-title="${esc(n.postTitle)}" comment-id="${esc(n.commentId)}" excerpt="${esc(n.excerpt)}" created-at="${esc(n.createdAt)}"${n.read ? " read" : ""}></g-notification-item>`).join("") : `<p>No replies yet. When someone answers your posts or comments, it shows up here.</p>`}
+      ${error ? `<p class="error" role="alert">${esc(error)}</p>` : ""}`}</div>`;
+    const b = this.shadowRoot.querySelector("button");
+    if (b) b.addEventListener("click", () => this.markAllRead());
   }
 }
-customElements.define("g-post-row", GPostRow);
+customElements.define("g-notification-list", GNotificationList);

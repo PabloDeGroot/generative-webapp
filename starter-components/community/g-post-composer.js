@@ -44,7 +44,7 @@ const DEFAULT_BOARDS = [
 ];
 
 class GPostComposer extends HTMLElement {
-  static get observedAttributes() { return ["board", "boards"]; }
+  static get observedAttributes() { return ["board"]; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -72,7 +72,7 @@ class GPostComposer extends HTMLElement {
     }
   }
   render(values) {
-    const boards = json(this.getAttribute("boards"), null) || DEFAULT_BOARDS;
+    const boards = DEFAULT_BOARDS;
     const selected = values?.get("board") || this.getAttribute("board") || "";
     const v = (k) => esc(values?.get(k) || "");
     this.shadowRoot.innerHTML = `<style>${TOKENS}

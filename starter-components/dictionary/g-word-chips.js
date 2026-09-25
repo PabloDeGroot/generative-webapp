@@ -14,6 +14,27 @@ const TOKENS = `:host { display: block; --paper: #f3ead7; --vellum: #ebdfc5; --i
 a { color: inherit; }
 :focus-visible { outline: 2px solid var(--gilt); outline-offset: 2px; }`;
 
+// Data too large or structured for attributes is fetched by the component itself through the site's
+// action runner (POST with an intent). Identical reads on one page share a single request, and the
+// server caches read results, so repeat visits don't run the LLM again.
+const componentReads = (window.__gComponentReads ??= new Map());
+async function postJson(route, body) {
+  const res = await fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = null;
+  try { data = await res.json(); } catch { /* no JSON body */ }
+  if (!res.ok || (data && data.ok === false)) {
+    throw new Error(res.status === 401 ? "Sign in to see this." : (data && (data.message || data.error)) || "Couldn\x27t load this.");
+  }
+  return data;
+}
+function readAction(route, body) {
+  const key = `${route} ${JSON.stringify(body)}`;
+  if (!componentReads.has(key)) componentReads.set(key, postJson(route, body).catch((err) => { componentReads.delete(key); throw err; }));
+  return componentReads.get(key);
+}
+// Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
+// result arrives under data.
+const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
 class GWordChips extends HTMLElement {
   static get observedAttributes() { return ["label", "words"]; }
   constructor() {
@@ -26,7 +47,7 @@ class GWordChips extends HTMLElement {
   }
   attributeChangedCallback() { if (this.isConnected) this.render(); }
   render() {
-    const words = json(this.getAttribute("words"), []).filter((w) => typeof w === "string" && w.trim());
+    const words = (this.getAttribute("words") || "").split(",").map((w) => w.trim()).filter(Boolean);
     const label = this.getAttribute("label");
     this.shadowRoot.innerHTML = `<style>${TOKENS}
       .wrap { display: grid; gap: 8px; padding: 12px 20px; }

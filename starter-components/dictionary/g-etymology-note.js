@@ -14,32 +14,65 @@ const TOKENS = `:host { display: block; --paper: #f3ead7; --vellum: #ebdfc5; --i
 a { color: inherit; }
 :focus-visible { outline: 2px solid var(--gilt); outline-offset: 2px; }`;
 
+// Data too large or structured for attributes is fetched by the component itself through the site's
+// action runner (POST with an intent). Identical reads on one page share a single request, and the
+// server caches read results, so repeat visits don't run the LLM again.
+const componentReads = (window.__gComponentReads ??= new Map());
+async function postJson(route, body) {
+  const res = await fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = null;
+  try { data = await res.json(); } catch { /* no JSON body */ }
+  if (!res.ok || (data && data.ok === false)) {
+    throw new Error(res.status === 401 ? "Sign in to see this." : (data && (data.message || data.error)) || "Couldn\x27t load this.");
+  }
+  return data;
+}
+function readAction(route, body) {
+  const key = `${route} ${JSON.stringify(body)}`;
+  if (!componentReads.has(key)) componentReads.set(key, postJson(route, body).catch((err) => { componentReads.delete(key); throw err; }));
+  return componentReads.get(key);
+}
+// Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
+// result arrives under data.
+const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
+const WORD_FORMAT = { word: "string", phonetic: "string", origin: "string", meanings: [{ partOfSpeech: "string", definitions: [{ text: "string", example: "string" }], synonyms: ["string"], antonyms: ["string"] }] };
+const wordRequest = (word) => readAction(`/word/${encodeURIComponent(word)}`, { intent: "look up a word", word, outputFormat: WORD_FORMAT });
+
 class GEtymologyNote extends HTMLElement {
-  static get observedAttributes() { return ["stages", "text"]; }
+  static get observedAttributes() { return ["word", "text"]; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._state = { status: "idle" };
   }
   connectedCallback() {
     loadFonts();
+    this.load();
+  }
+  attributeChangedCallback() { if (this.isConnected) this.load(); }
+  async load() {
+    const word = this.getAttribute("word");
+    if (this.getAttribute("text") || !word) { this._state = { status: "idle" }; this.render(); return; }
+    this._state = { status: "loading" }; this.render();
+    try {
+      const res = await wordRequest(word);
+      this._state = { status: "ready", origin: field(res, "origin") || "" };
+    } catch (err) {
+      this._state = { status: "error", message: err.message };
+    }
     this.render();
   }
-  attributeChangedCallback() { if (this.isConnected) this.render(); }
   render() {
-    const stages = json(this.getAttribute("stages"), []).filter((s) => s && s.form);
-    const text = this.getAttribute("text");
-    const chain = stages.map((s) => `<span class="stage"><span class="form">${esc(s.form)}</span>${s.note ? `<small>${esc(s.note)}</small>` : ""}</span>`).join(`<span class="arrow" aria-hidden="true">→</span>`);
+    const { status, origin, message } = this._state;
+    const text = this.getAttribute("text") || origin;
+    if (status === "ready" && !text) { this.shadowRoot.innerHTML = ""; return; } // nothing known: take no space
     this.shadowRoot.innerHTML = `<style>${TOKENS}
-      .wrap { display: grid; gap: 10px; padding: 16px 20px; }
+      .wrap { display: grid; gap: 8px; margin: 12px 20px; padding: 14px 18px; background: var(--vellum); border-left: 3px solid var(--gilt); }
       .eyebrow { font: 500 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--sepia); }
-      .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-      .stage { display: grid; gap: 2px; background: var(--vellum); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 10px; }
-      .form { font: 16px var(--serif); }
-      small { font: 11px var(--mono); color: var(--sepia); }
-      .arrow { color: var(--gilt); }
       p { margin: 0; font: 17px/1.55 var(--serif); max-width: 70ch; }
+      .note { font-style: italic; color: var(--sepia); }
     </style>
-    <div class="wrap"><span class="eyebrow">Origin</span>${stages.length ? `<div class="chain">${chain}</div>` : ""}${!stages.length && text ? `<p>${esc(text)}</p>` : ""}</div>`;
+    <div class="wrap"><span class="eyebrow">Origin</span>${status === "loading" ? `<p class="note">Tracing the word’s history…</p>` : status === "error" ? `<p class="note">${esc(message)}</p>` : `<p>${esc(text)}</p>`}</div>`;
   }
 }
 customElements.define("g-etymology-note", GEtymologyNote);

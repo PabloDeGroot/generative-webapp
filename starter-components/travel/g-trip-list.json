@@ -1,0 +1,12 @@
+{
+  "prompt": "Grid of the signed-in user's saved trips.",
+  "id": "g-trip-list",
+  "shortDesc": "Grid of the signed-in user's saved trips as trip cards, newest first, with an empty state. Takes no data: it loads the trips itself. Use it on /trips.",
+  "role": "leaf",
+  "props": [ { "name": "empty-text", "type": "string", "required": false, "description": "Shown when there are no trips yet." } ],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 p-4", "palette": ["#0d6f78", "#5b7385"], "notes": "Responsive card grid of g-trip-card." },
+  "dependencies": [ { "id": "g-trip-card", "usage": "One card per trip." } ],
+  "interactions": [ { "trigger": "component mounts", "method": "POST", "route": "/trips", "bodyShape": "{ intent: 'list my trips', outputFormat: { trips: [{ id, title, destination, country, startDate, endDate, itemCount }] } }" } ],
+  "markupSketch": "<div class=grid><g-trip-card trip-id title destination start-date end-date item-count></g-trip-card>…</div>"
+}

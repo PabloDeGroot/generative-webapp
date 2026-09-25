@@ -1,0 +1,15 @@
+{
+  "prompt": "The signed-in member's notifications.",
+  "id": "g-notification-list",
+  "shortDesc": "The signed-in member's reply notifications, newest first, with the unread count and a Mark all read button. Takes no data: it loads them itself. Use on /notifications.",
+  "role": "leaf",
+  "props": [],
+  "slots": [],
+  "styling": { "tailwindClasses": "grid gap-2 p-4", "palette": ["#2d6a4c", "#6b7178"], "notes": "Header line with the unread count and a pine text button; stack of g-notification-item." },
+  "dependencies": [ { "id": "g-notification-item", "usage": "One item per notification." } ],
+  "interactions": [
+    { "trigger": "component mounts", "method": "POST", "route": "/notifications", "bodyShape": "{ intent: 'list my notifications', outputFormat: { unread, notifications: [{ id, type, postId, postTitle, commentId, fromName, excerpt, createdAt, read }] } }" },
+    { "trigger": "Mark all read clicked", "method": "POST", "route": "/notifications", "bodyShape": "{ intent: 'mark all my notifications as read', outputFormat: { ok: 'boolean' } }" }
+  ],
+  "markupSketch": "<div><header>{unread} unread <button>Mark all read</button></header><g-notification-item …></g-notification-item>…</div>"
+}

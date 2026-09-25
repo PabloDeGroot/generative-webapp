@@ -1,19 +1,19 @@
 {
-  "prompt": "One day of a trip as a timeline, with adding and removing plans.",
+  "prompt": "A trip's days as a timeline, with adding and removing plans.",
   "id": "g-itinerary-day",
-  "shortDesc": "One trip day as a timeline (from GetTripOverview days[]): date header with weather and holiday chips, then each plan with time, title, location and cost. Signed-in users can add a plan or remove one; the page reloads after a change.",
+  "shortDesc": "A trip's plan as a timeline: each day with its weather and any public holiday, then each plan with time, title, location and cost. Give it the trip-id (and a date to show just that day); it loads the trip itself. Signed-in owners can add or remove plans; the page reloads after a change.",
   "role": "leaf",
   "props": [
     { "name": "trip-id", "type": "string", "required": true, "description": "Trip id." },
-    { "name": "day", "type": "json", "required": true, "description": "One entry of GetTripOverview days: { date, weather: { summary, tempMaxC, tempMinC } | null, holidays: string[], items: [{ id, time?, title, kind, location?, cost?, currency? }] }." },
-    { "name": "currency", "type": "string", "required": false, "description": "Currency for costs without their own. Default EUR." }
+    { "name": "date", "type": "string", "required": false, "description": "Show only this day (YYYY-MM-DD). Without it, every day of the trip is shown." }
   ],
   "slots": [],
-  "styling": { "tailwindClasses": "grid gap-3 p-4", "palette": ["#0d6f78", "#f0643f", "#13293d", "#e6f2f6", "#fde6df"], "notes": "Timeline rail with coloured dots per kind (food coral, transport harbour, others sea); mono times and costs; holiday chip in pale coral." },
+  "styling": { "tailwindClasses": "grid gap-3 p-4", "palette": ["#0d6f78", "#f0643f", "#13293d", "#e6f2f6", "#fde6df"], "notes": "Timeline rail with coloured dots per kind (food coral, transport harbour, stay sun, others sea); mono times and costs; holiday chip in pale coral." },
   "dependencies": [],
   "interactions": [
+    { "trigger": "component mounts", "method": "POST", "route": "/trips/{trip-id}", "bodyShape": "{ intent: 'get the trip overview', tripId, outputFormat: { trip, days: [{ date, weather, holidays, items }], budget, packingList } }" },
     { "trigger": "Add plan form submitted", "method": "POST", "route": "/trips/{trip-id}", "bodyShape": "{ intent: 'add an itinerary item', tripId, date, title, kind, time?, location?, cost?, currency?, outputFormat: { ok: 'boolean', id: 'string' } }" },
     { "trigger": "Remove button clicked", "method": "POST", "route": "/trips/{trip-id}", "bodyShape": "{ intent: 'remove an itinerary item', tripId, itemId, outputFormat: { ok: 'boolean' } }" }
   ],
-  "markupSketch": "<section><header><b>{date}</b><span>{weather}</span><span>{holiday}</span></header><ol><li><time>{time}</time><span>{title}<small>{location}</small></span><span>{cost}</span><button>Remove</button></li></ol><details><summary>+ Add a plan</summary><form>…</form></details></section>"
+  "markupSketch": "<section><header><b>{date}</b><span>{weather}</span><span>{holiday}</span></header><ol><li><time>{time}</time><span>{title}<small>{location}</small></span><span>{cost}</span><button>×</button></li></ol><details><summary>+ Add a plan</summary><form>…</form></details></section>"
 }

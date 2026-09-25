@@ -38,11 +38,10 @@ function readAction(route, body) {
 // Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
 // result arrives under data.
 const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
-const TRIP_FORMAT = { trip: { id: "string", title: "string", startDate: "string", endDate: "string", homeCurrency: "string", budget: "number", destination: { name: "string", currency: "string" } }, days: [{ date: "string", weather: { summary: "string", tempMaxC: "number", tempMinC: "number" }, holidays: ["string"], items: [{ id: "string", time: "string", title: "string", kind: "string", location: "string", cost: "number", currency: "string" }] }], budget: { currency: "string", total: "number", byKind: { kindName: "number" }, budget: "number", remaining: "number" }, packingList: { items: [{ item: "string", quantity: "number", reason: "string", category: "string" }] } };
-const tripRequest = (tripId) => readAction(`/trips/${encodeURIComponent(tripId)}`, { intent: "get the trip overview", tripId, outputFormat: TRIP_FORMAT });
+const TRIPS_FORMAT = { trips: [{ id: "string", title: "string", destination: "string", country: "string", startDate: "string", endDate: "string", itemCount: "number" }] };
 
-class GPackingChecklist extends HTMLElement {
-  static get observedAttributes() { return ["trip-id"]; }
+class GTripList extends HTMLElement {
+  static get observedAttributes() { return ["empty-text"]; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -52,44 +51,27 @@ class GPackingChecklist extends HTMLElement {
     loadFonts();
     this.load();
   }
-  attributeChangedCallback() { if (this.isConnected) this.load(); }
+  attributeChangedCallback() { if (this.isConnected) this.render(); }
   async load() {
-    const tripId = this.getAttribute("trip-id");
-    if (!tripId) return;
     this._state = { status: "loading" }; this.render();
     try {
-      const res = await tripRequest(tripId);
-      const list = field(res, "packingList");
-      this._state = { status: "ready", items: Array.isArray(list) ? list : list?.items || [] };
+      const res = await readAction("/trips", { intent: "list my trips", outputFormat: TRIPS_FORMAT });
+      const trips = field(res, "trips") ?? (Array.isArray(res?.data) ? res.data : []);
+      this._state = { status: "ready", trips };
     } catch (err) {
       this._state = { status: "error", message: err.message };
     }
     this.render();
   }
-  storeKey() { return `wayfarer-packing:${this.getAttribute("trip-id")}`; }
-  loadTicks() { try { return new Set(JSON.parse(localStorage.getItem(this.storeKey()) || "[]")); } catch { return new Set(); } }
-  saveTicks(ticks) { try { localStorage.setItem(this.storeKey(), JSON.stringify([...ticks])); } catch { /* storage unavailable */ } }
   render() {
-    const { status, items = [], message } = this._state;
-    const groups = new Map();
-    items.forEach((it) => { const c = it.category || "Other"; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(it); });
-    const ticks = this.loadTicks();
+    const { status, trips = [], message } = this._state;
     this.shadowRoot.innerHTML = `<style>${TOKENS}
-      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; padding: 16px; }
-      h3 { margin: 0 0 6px; font: 700 13px var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--sea); }
-      label { display: grid; grid-template-columns: 18px 1fr; gap: 8px; font-size: 14px; padding: 4px 0; cursor: pointer; }
-      input { accent-color: var(--sea); margin: 3px 0 0; }
-      small { grid-column: 2; color: var(--soft); font-size: 12px; margin-top: -2px; }
-      input:checked + span { color: var(--soft); text-decoration: line-through; }
-      .note { margin: 0; padding: 16px; color: var(--soft); font-size: 14px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 16px; }
+      p { margin: 0; padding: 16px; color: var(--soft); font-size: 15px; }
     </style>
-    ${status === "loading" ? `<p class="note">Working out what to pack…</p>` : status === "error" ? `<p class="note">${esc(message)}</p>`
-      : `<div class="grid">${[...groups].map(([cat, list]) => `<section><h3>${esc(cat)}</h3>${list.map((it) => `<label><input type="checkbox" data-key="${esc(it.item)}" ${ticks.has(it.item) ? "checked" : ""}><span>${esc(it.item)}${it.quantity ? ` × ${esc(it.quantity)}` : ""}</span>${it.reason ? `<small>${esc(it.reason)}</small>` : ""}</label>`).join("")}</section>`).join("") || `<p class="note">No packing list yet.</p>`}</div>`}`;
-    this.shadowRoot.querySelectorAll("input[type=checkbox]").forEach((box) => box.addEventListener("change", () => {
-      const current = this.loadTicks();
-      if (box.checked) current.add(box.dataset.key); else current.delete(box.dataset.key);
-      this.saveTicks(current);
-    }));
+    ${status === "loading" ? `<p>Loading your trips…</p>` : status === "error" ? `<p>${esc(message)}</p>`
+      : trips.length ? `<div class="grid">${trips.map((t) => `<g-trip-card trip-id="${esc(t.id)}" title="${esc(t.title)}" destination="${esc(t.destination)}" start-date="${esc(t.startDate)}" end-date="${esc(t.endDate)}" item-count="${esc(t.itemCount ?? 0)}"></g-trip-card>`).join("")}</div>`
+      : `<p>${esc(this.getAttribute("empty-text") || "No trips yet. Pick a destination and start planning.")}</p>`}`;
   }
 }
-customElements.define("g-packing-checklist", GPackingChecklist);
+customElements.define("g-trip-list", GTripList);

@@ -1,14 +1,21 @@
 {
   "prompt": "A post in a list.",
   "id": "g-post-row",
-  "shortDesc": "One post in a list (from ListPosts posts[]): vote control, title linking to /post/<id>, board tag, author, age and comment count. Stack several for board and home pages.",
+  "shortDesc": "One post in a list: vote control, title linking to /post/<post-id>, board tag, author, age and comment count, all as plain attributes. Usually rendered by g-post-list; use directly only for a hand-picked post.",
   "role": "leaf",
   "props": [
-    { "name": "post", "type": "json", "required": true, "description": "One ListPosts post: { id, boardId, title, tags, author: { displayName }, createdAt, score, commentCount, myVote? }." }
+    { "name": "post-id", "type": "string", "required": true, "description": "Post id." },
+    { "name": "title", "type": "string", "required": true, "description": "Post title." },
+    { "name": "board", "type": "string", "required": false, "description": "Board id, e.g. questions." },
+    { "name": "author", "type": "string", "required": false, "description": "Author's display name." },
+    { "name": "created-at", "type": "string", "required": false, "description": "ISO date the post was created." },
+    { "name": "score", "type": "number", "required": false, "description": "Current score." },
+    { "name": "comment-count", "type": "number", "required": false, "description": "Number of comments." },
+    { "name": "my-vote", "type": "number", "required": false, "description": "The viewer's vote: 1, -1 or 0." }
   ],
   "slots": [],
   "styling": { "tailwindClasses": "grid grid-cols-[44px_1fr] gap-3 rounded-lg border bg-white p-3", "palette": ["#ffffff", "#e2e2dc", "#6b7178"], "notes": "White row, Archivo 16px title, small grey meta line with a pine board tag." },
   "dependencies": [ { "id": "g-vote-control", "usage": "Vote column on the left." } ],
   "interactions": [],
-  "markupSketch": "<article><g-vote-control post-id score my-vote></g-vote-control><div><a href=/post/{id}>{title}</a><p><span class=tag>{boardId}</span> by {author} · {ago} · {n} comments</p></div></article>"
+  "markupSketch": "<article><g-vote-control post-id score my-vote></g-vote-control><div><a href=/post/{post-id}>{title}</a><p><span class=tag>{board}</span> by {author} · {ago} · {n} comments</p></div></article>"
 }

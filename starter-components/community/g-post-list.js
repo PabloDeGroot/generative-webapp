@@ -59,32 +59,43 @@ function readAction(route, body) {
 // Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
 // result arrives under data.
 const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
-class GPostRow extends HTMLElement {
-  static get observedAttributes() { return ["post-id", "title", "board", "author", "created-at", "score", "comment-count", "my-vote"]; }
+const POSTS_FORMAT = { posts: [{ id: "string", boardId: "string", title: "string", author: { displayName: "string" }, createdAt: "string", score: "number", commentCount: "number", myVote: "number" }] };
+
+class GPostList extends HTMLElement {
+  static get observedAttributes() { return ["board", "sort", "tag", "author-id", "limit"]; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._state = { status: "loading" };
   }
   connectedCallback() {
     loadFonts();
+    this.load();
+  }
+  attributeChangedCallback() { if (this.isConnected) this.load(); }
+  async load() {
+    const board = this.getAttribute("board") || undefined;
+    this._state = { status: "loading" }; this.render();
+    try {
+      const res = await readAction(board ? `/b/${encodeURIComponent(board)}` : "/", {
+        intent: "list posts", board, sort: this.getAttribute("sort") || "hot", tag: this.getAttribute("tag") || undefined,
+        authorId: this.getAttribute("author-id") || undefined, limit: Number(this.getAttribute("limit")) || 20, outputFormat: POSTS_FORMAT
+      });
+      this._state = { status: "ready", posts: field(res, "posts") || [] };
+    } catch (err) {
+      this._state = { status: "error", message: err.message };
+    }
     this.render();
   }
-  attributeChangedCallback() { if (this.isConnected) this.render(); }
   render() {
-    const id = this.getAttribute("post-id") || "";
-    const board = this.getAttribute("board");
-    const comments = Number(this.getAttribute("comment-count")) || 0;
-    const created = this.getAttribute("created-at");
+    const { status, posts = [], message } = this._state;
     this.shadowRoot.innerHTML = `<style>${TOKENS}
-      article { display: grid; grid-template-columns: 44px 1fr; gap: 10px; background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px 10px 4px; }
-      .title { font: 700 16px/1.3 var(--display); text-decoration: none; overflow-wrap: anywhere; }
-      .title:hover { color: var(--pine); }
-      .meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; font-size: 12.5px; color: var(--soft); }
-      .meta a { text-decoration: none; }
+      .list { display: grid; gap: 8px; padding: 12px 16px; }
+      p { margin: 0; padding: 12px 16px; color: var(--soft); font-size: 15px; }
     </style>
-    <article><g-vote-control post-id="${esc(id)}" score="${esc(this.getAttribute("score") || 0)}" my-vote="${esc(this.getAttribute("my-vote") || 0)}"></g-vote-control>
-      <div><a class="title" href="/post/${encodeURIComponent(id)}">${esc(this.getAttribute("title"))}</a>
-        <div class="meta">${board ? `<a class="tag" href="/b/${encodeURIComponent(board)}">${esc(board)}</a>` : ""}<span>by ${esc(this.getAttribute("author") || "unknown")}</span>${created ? `<span>${esc(ago(created))}</span>` : ""}<a href="/post/${encodeURIComponent(id)}#comments">${comments} comment${comments === 1 ? "" : "s"}</a></div></div></article>`;
+    ${status === "loading" ? `<p>Loading posts…</p>` : status === "error" ? `<p>${esc(message)}</p>`
+      : posts.length ? `<div class="list">${posts.map((p) => `<g-post-row post-id="${esc(p.id)}" title="${esc(p.title)}" board="${esc(p.boardId)}" author="${esc(p.author?.displayName)}" created-at="${esc(p.createdAt)}" score="${esc(p.score ?? 0)}" comment-count="${esc(p.commentCount ?? 0)}" my-vote="${esc(p.myVote ?? 0)}"></g-post-row>`).join("")}</div>`
+      : `<p>No posts here yet. <a href="/submit">Start the first one</a>.</p>`}`;
   }
 }
-customElements.define("g-post-row", GPostRow);
+customElements.define("g-post-list", GPostList);

@@ -17,39 +17,68 @@ a { color: inherit; }
 :focus-visible { outline: 2px solid var(--sea); outline-offset: 2px; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }`;
 
+// Data too large or structured for attributes is fetched by the component itself through the site's
+// action runner (POST with an intent). Identical reads on one page share a single request, and the
+// server caches read results, so repeat visits don't run the LLM again.
+const componentReads = (window.__gComponentReads ??= new Map());
+async function postJson(route, body) {
+  const res = await fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = null;
+  try { data = await res.json(); } catch { /* no JSON body */ }
+  if (!res.ok || (data && data.ok === false)) {
+    throw new Error(res.status === 401 ? "Sign in to see this." : (data && (data.message || data.error)) || "Couldn\x27t load this.");
+  }
+  return data;
+}
+function readAction(route, body) {
+  const key = `${route} ${JSON.stringify(body)}`;
+  if (!componentReads.has(key)) componentReads.set(key, postJson(route, body).catch((err) => { componentReads.delete(key); throw err; }));
+  return componentReads.get(key);
+}
+// Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
+// result arrives under data.
+const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
+const TRIP_FORMAT = { trip: { id: "string", title: "string", startDate: "string", endDate: "string", homeCurrency: "string", budget: "number", destination: { name: "string", currency: "string" } }, days: [{ date: "string", weather: { summary: "string", tempMaxC: "number", tempMinC: "number" }, holidays: ["string"], items: [{ id: "string", time: "string", title: "string", kind: "string", location: "string", cost: "number", currency: "string" }] }], budget: { currency: "string", total: "number", byKind: { kindName: "number" }, budget: "number", remaining: "number" }, packingList: { items: [{ item: "string", quantity: "number", reason: "string", category: "string" }] } };
+const tripRequest = (tripId) => readAction(`/trips/${encodeURIComponent(tripId)}`, { intent: "get the trip overview", tripId, outputFormat: TRIP_FORMAT });
 const KINDS = ["activity", "sight", "food", "transport", "stay", "note"];
 
 class GItineraryDay extends HTMLElement {
-  static get observedAttributes() { return ["trip-id", "day", "currency"]; }
+  static get observedAttributes() { return ["trip-id", "date"]; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._state = { status: "loading" };
     this._busy = false;
     this._error = "";
   }
   connectedCallback() {
     loadFonts();
+    this.load();
+  }
+  attributeChangedCallback() { if (this.isConnected) this.load(); }
+  async load() {
+    const tripId = this.getAttribute("trip-id");
+    if (!tripId) return;
+    this._state = { status: "loading" }; this.render();
+    try {
+      const res = await tripRequest(tripId);
+      this._state = { status: "ready", days: field(res, "days") || [], currency: field(res, "trip")?.destination?.currency || field(res, "trip")?.homeCurrency || "EUR" };
+    } catch (err) {
+      this._state = { status: "error", message: err.message };
+    }
     this.render();
   }
-  attributeChangedCallback() { if (this.isConnected) this.render(); }
   async send(body) {
     const tripId = this.getAttribute("trip-id");
     this._busy = true; this._error = ""; this.render();
     try {
-      const res = await fetch(`/trips/${encodeURIComponent(tripId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tripId, ...body })
-      });
-      if (!res.ok) throw new Error(res.status === 401 ? "Sign in to change this trip." : "That didn't work. Try again.");
+      await postJson(`/trips/${encodeURIComponent(tripId)}`, { tripId, ...body });
       location.reload();
     } catch (err) {
       this._busy = false; this._error = err.message; this.render();
     }
   }
-  render() {
-    const d = json(this.getAttribute("day"), {}) || {};
-    const currency = this.getAttribute("currency") || "EUR";
+  dayHtml(d, currency) {
     const w = d.weather;
     const items = Array.isArray(d.items) ? d.items : [];
     const temp = (t) => (typeof t === "number" ? `${Math.round(t)}°` : "–");
@@ -57,8 +86,26 @@ class GItineraryDay extends HTMLElement {
         <span>${esc(it.title)}${it.location ? `<small>${esc(it.location)}</small>` : ""}</span>
         <span class="cost num">${typeof it.cost === "number" ? esc(money(it.cost, it.currency || currency)) : ""}</span>
         <button type="button" class="rm" data-id="${esc(it.id)}" aria-label="Remove ${esc(it.title)}" ${this._busy ? "disabled" : ""}>×</button></li>`).join("");
+    return `<section data-date="${esc(d.date)}"><header><b>${esc(day(d.date, { weekday: "short", day: "numeric", month: "short" }))}</b>
+        ${w ? `<span class="chip">${esc(w.summary)} · <span class="num">${temp(w.tempMaxC)} / ${temp(w.tempMinC)}</span></span>` : ""}
+        ${(d.holidays || []).map((h) => `<span class="chip holiday">${esc(h)} · some places closed</span>`).join("")}</header>
+      ${rows ? `<ol>${rows}</ol>` : `<p class="empty">Nothing planned yet.</p>`}
+      <details><summary>+ Add a plan</summary>
+        <form data-date="${esc(d.date)}"><input class="wide" name="title" required maxlength="200" placeholder="What? e.g. Livraria Lello" aria-label="Plan">
+          <input name="time" type="time" aria-label="Time">
+          <select name="kind" aria-label="Kind">${KINDS.map((k) => `<option value="${k}">${k}</option>`).join("")}</select>
+          <input name="cost" type="number" min="0" step="0.01" placeholder="Cost" aria-label="Cost">
+          <input name="location" placeholder="Where (optional)" aria-label="Location">
+          <button class="add" type="submit" ${this._busy ? "disabled" : ""}>${this._busy ? "Saving…" : "Add plan"}</button></form></details></section>`;
+  }
+  render() {
+    const { status, days = [], currency = "EUR", message } = this._state;
+    const only = this.getAttribute("date");
+    const shown = only ? days.filter((d) => d.date === only) : days;
     this.shadowRoot.innerHTML = `<style>${TOKENS}
+      .wrap { display: grid; gap: 6px; }
       section { display: grid; gap: 12px; padding: 16px; }
+      section + section { border-top: 1px solid var(--line); }
       header { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: baseline; }
       header b { font: 700 19px var(--display); }
       .chip { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--sky); color: var(--sea); font-weight: 500; }
@@ -74,39 +121,30 @@ class GItineraryDay extends HTMLElement {
       .cost { font-size: 13px; }
       .rm { border: 0; background: none; color: var(--soft); font-size: 18px; line-height: 1; cursor: pointer; padding: 0; }
       .rm:hover { color: var(--coral); }
-      .empty { color: var(--soft); font-size: 14px; padding: 8px 0 8px 14px; }
+      .empty, .note { color: var(--soft); font-size: 14px; margin: 0; padding: 8px 0 8px 14px; }
       details summary { cursor: pointer; color: var(--sea); font-weight: 700; font-size: 14px; }
       form { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
       form .wide { grid-column: 1 / -1; }
       input, select { font: 14px var(--sans); color: var(--harbour); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; min-width: 0; }
       button.add { font: 700 14px var(--sans); color: #fff; background: var(--coral); border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer; }
-      .error { color: #b33d1f; font-size: 13px; margin: 0; }
+      .error { color: #b33d1f; font-size: 13px; margin: 0 16px 12px; }
     </style>
-    <section><header><b>${esc(day(d.date, { weekday: "short", day: "numeric", month: "short" }))}</b>
-        ${w ? `<span class="chip">${esc(w.summary)} · <span class="num">${temp(w.tempMaxC)} / ${temp(w.tempMinC)}</span></span>` : ""}
-        ${(d.holidays || []).map((h) => `<span class="chip holiday">${esc(h)} · some places closed</span>`).join("")}</header>
-      ${rows ? `<ol>${rows}</ol>` : `<p class="empty">Nothing planned yet.</p>`}
-      <details><summary>+ Add a plan</summary>
-        <form><input class="wide" name="title" required maxlength="200" placeholder="What? e.g. Livraria Lello" aria-label="Plan">
-          <input name="time" type="time" aria-label="Time">
-          <select name="kind" aria-label="Kind">${KINDS.map((k) => `<option value="${k}">${k}</option>`).join("")}</select>
-          <input name="cost" type="number" min="0" step="0.01" placeholder="Cost" aria-label="Cost">
-          <input name="location" placeholder="Where (optional)" aria-label="Location">
-          <button class="add" type="submit" ${this._busy ? "disabled" : ""}>${this._busy ? "Saving…" : "Add plan"}</button></form></details>
-      ${this._error ? `<p class="error" role="alert">${esc(this._error)}</p>` : ""}</section>`;
+    <div class="wrap" aria-busy="${status === "loading"}">${status === "loading" ? `<p class="note">Loading the plan…</p>` : status === "error" ? `<p class="note">${esc(message)}</p>`
+      : shown.map((d) => this.dayHtml(d, currency)).join("") || `<p class="note">No days to show.</p>`}
+      ${this._error ? `<p class="error" role="alert">${esc(this._error)}</p>` : ""}</div>`;
     this.shadowRoot.querySelectorAll(".rm").forEach((b) => b.addEventListener("click", () =>
       this.send({ intent: "remove an itinerary item", itemId: b.dataset.id, outputFormat: { ok: "boolean" } })));
-    this.shadowRoot.querySelector("form").addEventListener("submit", (e) => {
+    this.shadowRoot.querySelectorAll("form").forEach((form) => form.addEventListener("submit", (e) => {
       e.preventDefault();
-      const f = new FormData(e.target);
+      const f = new FormData(form);
       const cost = f.get("cost");
       this.send({
-        intent: "add an itinerary item", date: d.date, title: f.get("title"), kind: f.get("kind"),
+        intent: "add an itinerary item", date: form.dataset.date, title: f.get("title"), kind: f.get("kind"),
         time: f.get("time") || undefined, location: f.get("location") || undefined,
         cost: cost ? Number(cost) : undefined, currency: cost ? currency : undefined,
         outputFormat: { ok: "boolean", id: "string" }
       });
-    });
+    }));
   }
 }
 customElements.define("g-itinerary-day", GItineraryDay);

@@ -1,14 +1,12 @@
 {
   "prompt": "Trip spending against budget.",
   "id": "g-budget-meter",
-  "shortDesc": "Trip budget meter (from GetTripOverview budget): total spent against the budget in the home currency, a bar split by kind of expense, and the amount left.",
+  "shortDesc": "Trip budget meter: total spent against the budget in the home currency, a bar split by kind of expense, and the amount left. Give it the trip-id; it loads the figures itself.",
   "role": "leaf",
-  "props": [
-    { "name": "budget", "type": "json", "required": true, "description": "GetTripOverview → budget: { currency, total, byKind: { food: n, … }, budget: n | null, remaining: n | null }." }
-  ],
+  "props": [ { "name": "trip-id", "type": "string", "required": true, "description": "Trip id." } ],
   "slots": [],
   "styling": { "tailwindClasses": "grid gap-3 p-4", "palette": ["#f0643f", "#0d6f78", "#13293d", "#f2b53a", "#e6f2f6"], "notes": "Large DM Mono total; 12px rounded bar on sky; colour legend." },
   "dependencies": [],
-  "interactions": [],
+  "interactions": [ { "trigger": "component mounts", "method": "POST", "route": "/trips/{trip-id}", "bodyShape": "{ intent: 'get the trip overview', tripId, outputFormat: { trip, days, budget: { currency, total, byKind, budget, remaining }, packingList } }" } ],
   "markupSketch": "<div><p><b>€214</b> of €600 · €386 left</p><div class=bar><i></i><i></i></div><ul class=legend>…</ul></div>"
 }

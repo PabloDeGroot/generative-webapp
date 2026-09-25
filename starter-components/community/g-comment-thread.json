@@ -1,18 +1,18 @@
 {
   "prompt": "Threaded comments under a post.",
   "id": "g-comment-thread",
-  "shortDesc": "The whole comment tree of a post (GetPost → comments): nested replies with thread lines, author and age, compact votes, Reply (opens an inline reply box) and Delete on the viewer's own comments; deleted comments keep their place so replies stay attached. Includes the top-level comment box.",
+  "shortDesc": "A post's whole discussion: comment box, then nested replies with thread lines, author and age, compact votes, Reply (opens an inline reply box) and Delete on the viewer's own comments; deleted comments keep their place so replies stay attached. Give it the post-id; it loads the comments itself.",
   "role": "leaf",
-  "props": [
-    { "name": "post-id", "type": "string", "required": true, "description": "Post id." },
-    { "name": "comments", "type": "json", "required": true, "description": "GetPost → comments: tree of { id, body, author: { displayName }, createdAt, edited, score, deleted, myVote?, mine?, replies[] }." }
-  ],
+  "props": [ { "name": "post-id", "type": "string", "required": true, "description": "Post id." } ],
   "slots": [],
   "styling": { "tailwindClasses": "grid gap-3 bg-white p-4", "palette": ["#ffffff", "#e2e2dc", "#6b7178", "#e0582c"], "notes": "2px grey thread line per nesting level; italic grey for deleted comments." },
   "dependencies": [
     { "id": "g-vote-control", "usage": "Compact vote on each comment." },
     { "id": "g-reply-form", "usage": "Top-level comment box and inline reply boxes." }
   ],
-  "interactions": [ { "trigger": "Delete confirmed on own comment", "method": "POST", "route": "/post/{post-id}", "bodyShape": "{ intent: 'delete comment', postId, commentId, outputFormat: { ok: 'boolean' } }" } ],
+  "interactions": [
+    { "trigger": "component mounts", "method": "POST", "route": "/post/{post-id}", "bodyShape": "{ intent: 'get a post with its comments', postId, outputFormat: { post, comments: [{ id, body, author, createdAt, edited, score, deleted, myVote, mine, replies }] } }" },
+    { "trigger": "Delete confirmed on own comment", "method": "POST", "route": "/post/{post-id}", "bodyShape": "{ intent: 'delete comment', postId, commentId, outputFormat: { ok: 'boolean' } }" }
+  ],
   "markupSketch": "<section id=comments><g-reply-form post-id></g-reply-form><div class=c><p class=who>{author} · {ago}</p><p>{body}</p><div class=act><g-vote-control compact></g-vote-control> Reply</div><div class=replies>…</div></div></section>"
 }

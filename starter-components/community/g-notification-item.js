@@ -38,8 +38,29 @@ a { color: inherit; }
 .tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 4px; background: var(--pine-tint); color: var(--pine); text-decoration: none; }
 .error { color: #b3381a; font-size: 13px; margin: 0; }`;
 
+// Data too large or structured for attributes is fetched by the component itself through the site's
+// action runner (POST with an intent). Identical reads on one page share a single request, and the
+// server caches read results, so repeat visits don't run the LLM again.
+const componentReads = (window.__gComponentReads ??= new Map());
+async function postJson(route, body) {
+  const res = await fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = null;
+  try { data = await res.json(); } catch { /* no JSON body */ }
+  if (!res.ok || (data && data.ok === false)) {
+    throw new Error(res.status === 401 ? "Sign in to see this." : (data && (data.message || data.error)) || "Couldn\x27t load this.");
+  }
+  return data;
+}
+function readAction(route, body) {
+  const key = `${route} ${JSON.stringify(body)}`;
+  if (!componentReads.has(key)) componentReads.set(key, postJson(route, body).catch((err) => { componentReads.delete(key); throw err; }));
+  return componentReads.get(key);
+}
+// Responses follow the requested outputFormat; when the runner couldn't shape them, the raw tool
+// result arrives under data.
+const field = (res, key) => (res && typeof res === "object" ? (res[key] ?? res.data?.[key]) : undefined);
 class GNotificationItem extends HTMLElement {
-  static get observedAttributes() { return ["notification"]; }
+  static get observedAttributes() { return ["type", "from-name", "post-id", "post-title", "comment-id", "excerpt", "created-at", "read"]; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -50,20 +71,23 @@ class GNotificationItem extends HTMLElement {
   }
   attributeChangedCallback() { if (this.isConnected) this.render(); }
   render() {
-    const n = json(this.getAttribute("notification"), {}) || {};
-    const what = n.type === "comment-reply" ? "your comment" : "your post";
-    const href = `/post/${encodeURIComponent(n.postId || "")}${n.commentId ? `#c-${encodeURIComponent(n.commentId)}` : ""}`;
+    const read = this.hasAttribute("read");
+    const what = this.getAttribute("type") === "comment-reply" ? "your comment" : "your post";
+    const commentId = this.getAttribute("comment-id");
+    const postTitle = this.getAttribute("post-title");
+    const excerpt = this.getAttribute("excerpt");
+    const href = `/post/${encodeURIComponent(this.getAttribute("post-id") || "")}${commentId ? `#c-${encodeURIComponent(commentId)}` : ""}`;
     this.shadowRoot.innerHTML = `<style>${TOKENS}
       a { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: start; text-decoration: none; background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
       a:hover { border-color: var(--pine); }
-      .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: ${n.read ? "transparent" : "var(--up)"}; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: ${read ? "transparent" : "var(--up)"}; }
       small { display: block; color: var(--soft); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
       .on { color: var(--soft); }
       time { font-size: 12px; color: var(--soft); white-space: nowrap; }
     </style>
-    <a href="${href}"><span class="dot" aria-label="${n.read ? "Read" : "Unread"}"></span>
-      <div><b>${esc(n.fromName || "Someone")}</b> replied to ${what}${n.postTitle ? ` <span class="on">on “${esc(n.postTitle)}”</span>` : ""}${n.excerpt ? `<small>“${esc(n.excerpt)}”</small>` : ""}</div>
-      <time>${esc(ago(n.createdAt))}</time></a>`;
+    <a href="${href}"><span class="dot" aria-label="${read ? "Read" : "Unread"}"></span>
+      <div><b>${esc(this.getAttribute("from-name") || "Someone")}</b> replied to ${what}${postTitle ? ` <span class="on">on “${esc(postTitle)}”</span>` : ""}${excerpt ? `<small>“${esc(excerpt)}”</small>` : ""}</div>
+      <time>${esc(ago(this.getAttribute("created-at")))}</time></a>`;
   }
 }
 customElements.define("g-notification-item", GNotificationItem);

@@ -4,6 +4,7 @@ import { Runware } from '@runware/sdk-js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { GoogleAuth } from 'google-auth-library';
 import { getRequestToolkit } from '$lib/server/toolkit';
+import { actionCacheKey, actionCacheVersion, invalidateActionCache, readCachedAction, writeCachedAction } from '$lib/server/action-cache';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { error as httpError } from '@sveltejs/kit';
 import { dev } from '$app/environment';
@@ -179,7 +180,16 @@ function parseToolJson(content: unknown): unknown {
 
 interface ToolLoopResult {
     finalText: string;
-    toolInvocations: Array<{ name: string; args: Record<string, unknown>; result: unknown }>;
+    toolInvocations: ToolInvocation[];
+}
+
+// readOnly comes from the tool's readOnlyHint annotation; the action cache relies on it.
+interface ToolInvocation {
+    name: string;
+    args: Record<string, unknown>;
+    result: unknown;
+    readOnly: boolean;
+    failed: boolean;
 }
 
 interface McpToolDescriptor {
@@ -238,7 +248,7 @@ async function runMcpToolLoop(input: {
                     try {
                         const response = await mcp.callTool({ name: descriptor.name, arguments: args });
                         const parsed = parseToolJson(response.content);
-                        result.toolInvocations.push({ name: descriptor.name, args, result: parsed });
+                        result.toolInvocations.push({ name: descriptor.name, args, result: parsed, readOnly: descriptor.annotations?.readOnlyHint === true, failed: false });
                         const toolDuration = toolStop({
                             ok: true,
                             result_chars: typeof parsed === 'string' ? parsed.length : JSON.stringify(parsed ?? null).length
@@ -247,7 +257,7 @@ async function runMcpToolLoop(input: {
                         return parsed ?? null;
                     } catch (error) {
                         const message = error instanceof Error ? error.message : 'Unknown tool error';
-                        result.toolInvocations.push({ name: descriptor.name, args, result: { error: message } });
+                        result.toolInvocations.push({ name: descriptor.name, args, result: { error: message }, readOnly: descriptor.annotations?.readOnlyHint === true, failed: true });
                         const toolDuration = toolStop({ ok: false, error });
                         recordToolCall({ toolName: descriptor.name, durationMs: toolDuration, ok: false, startedAt: toolStartedAt });
                         loopLog.warn('tool_call_failed', { tool: descriptor.name, error });
@@ -658,6 +668,29 @@ export async function HandleAction(request: Request, idToken?: string, userId?: 
         actionLog.warn('body_not_json', { body_chars: bodyText.length, error });
     }
 
+    const actionHeaders = (cacheStatus: string) => ({
+        'Content-Type': 'application/json',
+        'Cache-Control': 'private, no-store',
+        'X-Robots-Tag': 'noindex, nofollow',
+        'X-Action-Cache': cacheStatus
+    });
+
+    // Components fetch their data through actions; identical read requests are answered from
+    // the cache instead of running the LLM again (see $lib/server/action-cache.ts).
+    const toolkitId = getRequestToolkit(request);
+    const cacheKey = actionCacheKey({
+        method,
+        route,
+        body: Object.keys(bodyJson).length ? bodyJson : bodyText,
+        userId: userId ?? null
+    });
+    const cached = await readCachedAction(toolkitId, cacheKey);
+    if (cached) {
+        stop({ cache: 'hit' });
+        return new Response(JSON.stringify(cached.response), { status: 200, headers: actionHeaders('hit') });
+    }
+    const cacheVersion = await actionCacheVersion(toolkitId);
+
     const outputFormat = (typeof bodyJson.outputFormat === 'string' && bodyJson.outputFormat.trim())
         ? bodyJson.outputFormat
         : '{ "ok": boolean, "message": string, "data": any }';
@@ -698,25 +731,34 @@ export async function HandleAction(request: Request, idToken?: string, userId?: 
     });
 
     const json = parseActionJson(finalText, toolInvocations);
+    const ok = !(json && typeof json === 'object' && (json as any).ok === false);
+
+    // A successful write retires every cached read of this toolkit; a run that only used
+    // read-only tools (and succeeded) is stored for the next identical request.
+    const wrote = toolInvocations.some((t) => !t.readOnly && !t.failed);
+    const readOnlyRun = toolInvocations.length > 0 && toolInvocations.every((t) => t.readOnly && !t.failed);
+    let cacheStatus = 'skipped';
+    if (wrote) {
+        await invalidateActionCache(toolkitId);
+        cacheStatus = 'invalidated';
+    } else if (readOnlyRun && ok) {
+        await writeCachedAction(toolkitId, cacheKey, json, cacheVersion);
+        cacheStatus = 'stored';
+    }
+
     stop({
         tools_invoked: toolInvocations.map((t) => t.name),
         last_tool: toolInvocations[toolInvocations.length - 1]?.name,
-        ok: !(json && typeof json === 'object' && (json as any).ok === false)
+        ok,
+        cache: cacheStatus
     });
 
-    return new Response(JSON.stringify(json), {
-        status: 200,
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'private, no-store',
-            'X-Robots-Tag': 'noindex, nofollow'
-        }
-    });
+    return new Response(JSON.stringify(json), { status: 200, headers: actionHeaders(cacheStatus) });
 }
 
 function parseActionJson(
     rawText: string,
-    toolInvocations: Array<{ name: string; args: Record<string, unknown>; result: unknown }>
+    toolInvocations: ToolInvocation[]
 ): unknown {
     const text = stripCodeFence(rawText).trim();
     if (text) {
