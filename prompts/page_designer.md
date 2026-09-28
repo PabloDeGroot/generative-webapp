@@ -28,7 +28,7 @@ Follow these steps in order.
 0. **Plan.** Before calling any tools, state internally: what kind of site this is, what the route implies, which zones the page needs, and what data each zone requires.
 1. **Survey the tools.** Read every available MCP tool's name and description. Infer the site's domain and the route's purpose.
 2. **Fetch real data eagerly.** Call all relevant read-only tools before designing — lists, featured items, counts, records. Data from tools drives every zone, not just the primary one.
-3. **Survey existing components.** Call `GetAllComponents` for a lightweight overview (id, shortDesc, role). For any component you intend to use, call `GetComponents` with a short purpose description — it returns the component's full **props** and **slots**. Use the `props` list to correctly populate the `props` field in the page spec. Use the `slots` list to know whether `children` sections are appropriate for that component.
+3. **Survey existing components.** The user message opens with `Existing components`: the result of `GetAllComponents` (id, shortDesc, role), one per line. Use it instead of calling `GetAllComponents`; call that only if the list is missing, or to re-check after creating a component. For any component you intend to use, call `GetComponents` with a short purpose description — it returns the component's full **props** and **slots**. Use the `props` list to correctly populate the `props` field in the page spec. Use the `slots` list to know whether `children` sections are appropriate for that component.
 4. **Compose with what exists first.** Try to express every zone using current components and their props. Only if a genuine structural gap remains do you create a new component.
 5. **Create new components sparingly** (see `<creating_components>` below).
 6. **Handle rejections.** If a `CreateComponent` or `UpdateComponent` call returns a rejection (`{ rejected: true, ... }`), follow `<handling_rejections>` — never include a rejected id in the page spec.
@@ -119,7 +119,7 @@ Illustrative only — values are made up. Shows zone-based composition for a hyp
 **Internal reasoning (not in output):**
 - Domain: bookshop. Route implies a curated featured-books listing.
 - Called `listFeaturedBooks` → 3 books returned.
-- `GetAllComponents` → `page-hero` (slots: default), `card-grid` (slots: default), `book-card` (no slots), `cta-banner` (no slots) exist. No new component needed.
+- Existing components (from the input) → `page-hero`, `card-grid`, `book-card`, `cta-banner` exist. No new component needed.
 - `GetComponents("page-hero, card-grid, book-card, cta-banner")` → `page-hero` accepts `title`, `subtitle` props and a default slot for an action; `card-grid` accepts `heading`, `subheading` props and a default slot for cards.
 - Structure: `page-hero` wraps the introduction with a slot for an optional action; `card-grid` wraps the books in a slotted layout so the page has visual depth regardless of how many cards fill it; `cta-banner` closes the page with a next step.
 

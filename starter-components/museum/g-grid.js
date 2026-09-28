@@ -8,9 +8,9 @@ function loadFonts() {
 // Exhibition text is stored HTML-escaped and may arrive decoded or not: decode once, then always escape.
 const ENTITIES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "\x27" };
 const esc = (v) => String(v ?? "").replace(/&(amp|lt|gt|quot|#39);/g, (m) => ENTITIES[m]).replace(/[&<>"\x27]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\x27": "&#39;" }[c]));
-// Real images only: an <img> src must be a same-origin /__art/ URL from the museum tools. Anything else
+// Real images only: an <img> src must be a same-origin /__media/ URL from the museum tools. Anything else
 // (generated /images/*.png, external hosts, made-up paths) is dropped and the typographic placeholder shows.
-const artSrc = (u) => (typeof u === "string" && u.startsWith("/__art/") && !u.includes("..") ? u : "");
+const artSrc = (u) => (typeof u === "string" && u.startsWith("/__media/") && !u.includes("..") ? u : "");
 const isArtworkId = (id) => /^(aic|met)-\d+$/.test(String(id || ""));
 // Canonical site routes (singular /collection/ and /exhibition/ are aliases served by the same pages).
 const artworkHref = (id) => `/artwork/${encodeURIComponent(id)}`;
@@ -43,7 +43,9 @@ function wireImages(root) {
   root.querySelectorAll("img[data-title]").forEach((img) => {
     const show = () => img.classList.add("in");
     const fail = () => { const box = document.createElement("div"); box.innerHTML = placeholder(img.dataset.title); img.replaceWith(box.firstElementChild); };
-    if (img.complete) { if (img.naturalWidth) show(); else fail(); return; }
+    if (img.complete && img.naturalWidth) { show(); return; }
+    // A lazy image the browser has not fetched yet may also report complete with no size: wait for its events.
+    if (img.complete && img.loading !== "lazy") { fail(); return; }
     img.addEventListener("load", show, { once: true });
     img.addEventListener("error", fail, { once: true });
   });

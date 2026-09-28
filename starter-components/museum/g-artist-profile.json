@@ -18,7 +18,7 @@
       "trigger": "Mount or artist attribute change (shared with g-artwork-grid artist=, byte-identical body from the kit's READS.artist)",
       "method": "POST",
       "route": "/artist/{encodeURIComponent(artist)}",
-      "bodyShape": "{ intent: 'get artist profile and works (GetArtist)', name, outputFormat: { name, description, bio, born: 'number|null', died: 'number|null', portraitUrl: '/__art URL|null', wikipediaUrl: 'string|null', artworks: [{ id, title, artist, date, museum, imageUrl, thumbUrl, imageAlt }] } }"
+      "bodyShape": "{ intent: 'get artist profile and works (GetArtist)', name, outputFormat: { name, description, bio, born: 'number|null', died: 'number|null', portraitUrl: '/__media URL|null', wikipediaUrl: 'string|null', artworks: [{ id, title, artist, date, museum, imageUrl, thumbUrl, imageAlt }] } }"
     }
   ],
   "markupSketch": "<section class=band><div class=inner><figure><div class='frame portrait'><img alt='Portrait of {name}' loading=eager fetchpriority=high></div><figcaption class=label>Portrait · Wikimedia Commons</figcaption></figure><div class=text><span class=kicker>Artist</span><h1>{name}</h1><p class=desc>{description}</p><p class=life><span class=label>Life</span> <span class=num>{born}–{died}</span></p><hr class=rule><div class='bio clamped' id=bio><p>{bio paragraph}</p>…</div><button class=more aria-expanded=false aria-controls=bio>Read more</button><p class=src><a class=label href={wikipediaUrl} target=_blank rel=noopener>Biography from Wikipedia ↗</a> <span class=label>Text CC BY-SA 4.0</span></p></div></div></section>"

@@ -1,7 +1,9 @@
 import { UpstreamError, fetchJson, withQuery } from "../shared/http";
+import { IMAGE_PROXY_PREFIX } from "../shared/image-proxy";
+import { IMAGE_SOURCES } from "./image-proxy";
 
 // Public collection APIs of the Art Institute of Chicago and The Met, plus Wikipedia for artists.
-// Every image URL handed out is a same-origin /__art/... proxy URL (src/routes/__art), never an
+// Every image URL handed out is a same-origin /__media/... proxy URL (src/routes/__media), never an
 // external one: pages must show the real artwork, served from the site itself.
 
 const DAY = 24 * 3600;
@@ -169,36 +171,36 @@ export function parseArtworkId(id: string): { museum: "aic" | "met"; num: number
 }
 
 // ---------------------------------------------------------------------------
-// Image URLs (always /__art proxy paths)
+// Image URLs (always /__media proxy paths, accepted by the patterns in image-proxy.ts)
 // ---------------------------------------------------------------------------
 
 /** IIIF URL at the given width, capped at the image's own width (AIC refuses to upscale). */
 function aicImage(imageId: string, width: 200 | 400 | 843 | 1686, fullWidth?: number | null): string {
     const w = fullWidth && fullWidth > 0 ? Math.min(width, fullWidth) : width;
-    return `/__art/aic/${imageId}/full/${w},/0/default.jpg`;
+    return `${IMAGE_PROXY_PREFIX}aic/${imageId}/full/${w},/0/default.jpg`;
 }
 
-const MET_IMAGE_BASE = "https://images.metmuseum.org/CRDImages/";
+const MET_IMAGE_BASE = IMAGE_SOURCES.met.base;
 
 /** Met image URL (any rendition) -> proxy URL of the given rendition, or null if not a Met image. */
 function metImage(url: string, rendition: "web-large" | "mobile-large"): string | null {
     if (!url.startsWith(MET_IMAGE_BASE)) return null;
     const path = url.slice(MET_IMAGE_BASE.length).replace(/ /g, "%20").replace(/\/(original|web-large|mobile-large|web-additional)\//, `/${rendition}/`);
-    if (!/^[\w\-./%]+\.(jpe?g|png)$/i.test(path)) return null;
-    return `/__art/met/${path}`;
+    if (!IMAGE_SOURCES.met.path.test(path)) return null;
+    return `${IMAGE_PROXY_PREFIX}met/${path}`;
 }
 
 const WIKI_IMAGE_BASE = /^https:\/\/(upload|thumb)\.wikimedia\.org\/wikipedia\//;
 
 /**
- * Wikimedia image URL (upload. or thumb. host; query string dropped) -> /__art/wiki proxy URL,
+ * Wikimedia image URL (upload. or thumb. host; query string dropped) -> /__media/wiki proxy URL,
  * or null when the proxy wouldn't accept it.
  */
 export function wikiImage(url: string | undefined): string | null {
     if (!url || !WIKI_IMAGE_BASE.test(url)) return null;
     const path = url.replace(WIKI_IMAGE_BASE, "").split(/[?#]/)[0];
-    if (path.includes("..") || !/^[\w\-./%(),'!~]+\.(jpe?g|png|gif|webp|svg)(\/[\w\-.%(),'!~]+)?$/i.test(path)) return null;
-    return `/__art/wiki/${path}`;
+    if (path.includes("..") || !IMAGE_SOURCES.wiki.path.test(path)) return null;
+    return `${IMAGE_PROXY_PREFIX}wiki/${path}`;
 }
 
 // ---------------------------------------------------------------------------

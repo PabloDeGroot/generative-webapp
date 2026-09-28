@@ -16,6 +16,9 @@ import { GetModel } from "./asset-manager";
 import { mcpHandler } from "./mcp";
 import { generateRequestId, logger, withRequestContext } from "./logger";
 import { resolveLanguageModel, resolveProviderName } from "./ai-model-provider";
+import { pipelineSettings } from "./pipeline-config";
+import { stepCallOptions } from "./pipeline-steps";
+import { randomUUID } from "node:crypto";
 import {
     CreateComponent,
     GetAllComponents,
@@ -32,7 +35,7 @@ import { SaveUserPreference, GetUserPreferences, formatPreferencesForPrompt } fr
 import { allToolkits, getToolkit } from "./toolkits/registry";
 import { currentToolkit, runWithToolkit } from "./toolkits/context";
 import type { DomainToolkit } from "./toolkits/types";
-import { loadPrompt, requireEnv } from "./prompt-loader";
+import { loadPrompt } from "./prompt-loader";
 import { aiSecrets, openaiApiKey } from "./secrets";
 
 const feedbackEvaluatorPrompt = loadPrompt("feedback_evaluator");
@@ -239,6 +242,7 @@ export const createScene = onCall({
                 })
             },
             stopWhen: stepCountIs(MAX_SCENE_TOOL_STEPS),
+            ...stepCallOptions({ model }, randomUUID()),
             onStepFinish(step) {
                 sceneLog.debug("step_finished", {
                     step_number: step.stepNumber,
@@ -391,12 +395,15 @@ export const evaluateFeedback = onCall({
         const llmStop = fbLog.time("llm_call");
         let result;
         try {
+            const feedbackSettings = await pipelineSettings("FEEDBACK_EVALUATOR_MODEL");
+            const feedbackModel = feedbackSettings.model;
             result = await generateText({
-                model: resolveLanguageModel(requireEnv("FEEDBACK_EVALUATOR_MODEL")),
+                model: resolveLanguageModel(feedbackModel),
                 system: feedbackEvaluatorPrompt,
                 prompt: userMessage,
                 tools: tools as Parameters<typeof generateText>[0]["tools"],
                 stopWhen:stepCountIs(MAX_FEEDBACK_TOOL_STEPS),
+                ...stepCallOptions(feedbackSettings, randomUUID()),
                 onStepFinish(step) {
                     fbLog.debug("step_finished", {
                         step_number: step.stepNumber,
@@ -617,12 +624,15 @@ export const initializeComponents = operatorFunction({
         const llmStop = initLog.time("llm_call");
         let result;
         try {
+            const initializerSettings = await pipelineSettings("COMPONENT_INITIALIZER_MODEL");
+            const initializerModel = initializerSettings.model;
             result = await generateText({
-                model: resolveLanguageModel(requireEnv("COMPONENT_INITIALIZER_MODEL")),
+                model: resolveLanguageModel(initializerModel),
                 system: componentInitializerPrompt,
                 prompt: userMessage,
                 tools: tools as Parameters<typeof generateText>[0]["tools"],
                 stopWhen:stepCountIs(MAX_INIT_TOOL_STEPS),
+                ...stepCallOptions(initializerSettings, randomUUID()),
                 onStepFinish(step) {
                     initLog.debug("step_finished", {
                         step_number: step.stepNumber,
@@ -730,12 +740,15 @@ export const updateComponents = operatorFunction({
         const llmStop = updLog.time("llm_call");
         let result;
         try {
+            const curatorSettings = await pipelineSettings("COMPONENT_CURATOR_MODEL");
+            const curatorModel = curatorSettings.model;
             result = await generateText({
-                model: resolveLanguageModel(requireEnv("COMPONENT_CURATOR_MODEL")),
+                model: resolveLanguageModel(curatorModel),
                 system: componentCuratorPrompt,
                 prompt: userMessage,
                 tools: tools as Parameters<typeof generateText>[0]["tools"],
                 stopWhen:stepCountIs(MAX_UPDATE_TOOL_STEPS),
+                ...stepCallOptions(curatorSettings, randomUUID()),
                 onStepFinish(step) {
                     updLog.debug("step_finished", {
                         step_number: step.stepNumber,

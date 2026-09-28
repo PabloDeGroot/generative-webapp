@@ -26,14 +26,13 @@ import './lib/firebase_admin';
 import { authGateEnabled, GATE_SIGN_IN_PROVIDER } from '$lib/server/auth-gate';
 import { getSessionField, setSessionField } from '$lib/server/session-cookie';
 import { resolveToolkitId, setRequestToolkit } from '$lib/server/toolkit';
+import { IMAGE_PROXY_PREFIX } from '$toolkits/shared/image-proxy';
 
 const log = logger.child('hooks');
 
 const SESSION_AUTH_PATH = '/__session-auth';
 const IMAGE_PATH = /\.(png|jpg|jpeg|gif|webp|avif|svg)$/i;
 const FAVICON_PATH = /favicon\.(png|ico)$/i;
-// Real images proxied by the /__art route (museum artwork, Wikimedia); never generated.
-const ART_PREFIX = '/__art/';
 
 async function handleImageRequest(event: RequestEvent, pathname: string): Promise<Response> {
     const imgLog = log.child('image', { route: pathname });
@@ -168,7 +167,7 @@ export const handle: Handle = async ({ event, resolve }) => {
             const stop = log.time('request', { user_agent: userAgent, authenticated: Boolean(auth.userId) });
             try {
                 const pathname = event.url.pathname;
-                if (IMAGE_PATH.test(pathname) && !pathname.startsWith(ART_PREFIX)) {
+                if (IMAGE_PATH.test(pathname) && !pathname.startsWith(IMAGE_PROXY_PREFIX) /* real images, never generated */) {
                     if (FAVICON_PATH.test(pathname)) {
                         return new Response(null, {
                             status: 204,
@@ -185,7 +184,9 @@ export const handle: Handle = async ({ event, resolve }) => {
                     event.request.headers.get('x-__session') || event.request.headers.get('__session')
                 );
                 const isSessionAuth = pathname === SESSION_AUTH_PATH;
-                if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' && !isAppCheckPost && !isSessionAuth) {
+                // The debug room's own form actions (settings); its routes check access themselves.
+                const isDebugRoom = pathname === '/__debug' || pathname.startsWith('/__debug/');
+                if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' && !isAppCheckPost && !isSessionAuth && !isDebugRoom) {
                     const response = await HandleAction(event.request, auth.idToken, auth.userId);
                     stop({ status: response.status, kind: 'action', method });
                     return response;

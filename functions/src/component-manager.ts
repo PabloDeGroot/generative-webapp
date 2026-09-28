@@ -4,9 +4,12 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "./logger";
+import { pipelineSettings } from "./pipeline-config";
+import { stepCallOptions } from "./pipeline-steps";
+import { randomUUID } from "node:crypto";
 import { withComponentMetrics, recordLlmCall, recordToolCall } from "./metrics";
 import { resolveLanguageModel, resolveProviderName } from "./ai-model-provider";
-import { loadPrompt, requireEnv } from "./prompt-loader";
+import { loadPrompt } from "./prompt-loader";
 
 const componentDesignerPrompt = loadPrompt("component_designer");
 const componentCodegenPrompt = loadPrompt("component_codegen");
@@ -853,7 +856,8 @@ async function designComponent(input: {
     const userMessage = messageParts.join("\n\n");
 
     const systemInstruction = componentDesignerPrompt;
-    const model = requireEnv("COMPONENT_DESIGNER_MODEL");
+    const settings = await pipelineSettings("COMPONENT_DESIGNER_MODEL");
+    const model = settings.model;
 
     const designLog = log.child("design", {
         id: input.id,
@@ -945,6 +949,7 @@ async function designComponent(input: {
         prompt: userMessage,
         tools: tools as Parameters<typeof generateText>[0]["tools"],
         stopWhen: stepCountIs(MAX_TOOL_CALLS_PER_GENERATION + 1),
+        ...stepCallOptions(settings, randomUUID()),
         onStepFinish(step) {
             designLog.debug("step_finished", {
                 step_number: step.stepNumber,
@@ -1021,7 +1026,8 @@ async function generateComponentCodeFromSpec(input: {
 
     const userMessage = messageParts.join("\n\n");
 
-    const model = requireEnv("COMPONENT_CODEGEN_MODEL");
+    const settings = await pipelineSettings("COMPONENT_CODEGEN_MODEL");
+    const model = settings.model;
     const codegenLog = log.child("codegen", {
         id: input.id,
         mode: input.mode,
@@ -1034,7 +1040,8 @@ async function generateComponentCodeFromSpec(input: {
     const result = await generateText({
         model: resolveLanguageModel(model),
         system: componentCodegenPrompt,
-        prompt: userMessage
+        prompt: userMessage,
+        ...stepCallOptions(settings)
     });
     const llmDuration = llmStop({
         ok: true,
@@ -1150,7 +1157,8 @@ async function evaluateComponentCode(input: { id: string; spec: ComponentSpec; c
     parts.push("Evaluate the source against every rule in the system prompt. Return JSON only.");
     const userMessage = parts.join("\n\n");
 
-    const model = requireEnv("COMPONENT_EVALUATOR_MODEL");
+    const settings = await pipelineSettings("COMPONENT_EVALUATOR_MODEL");
+    const model = settings.model;
     const evalLog = log.child("evaluator", {
         id: input.id,
         model,
@@ -1164,7 +1172,8 @@ async function evaluateComponentCode(input: { id: string; spec: ComponentSpec; c
         result = await generateText({
             model: resolveLanguageModel(model),
             system: componentEvaluatorPrompt,
-            prompt: userMessage
+            prompt: userMessage,
+            ...stepCallOptions(settings)
         });
     } catch (error) {
         llmStop({ ok: false, error });

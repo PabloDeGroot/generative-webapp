@@ -1,13 +1,13 @@
 {
   "prompt": "One museum collection (department) as a tile with a real cover work, linking to its collection page.",
   "id": "g-collection-tile",
-  "shortDesc": "One collection (museum department) as a tile: a real representative work framed uncropped on a 4:3 mat, the collection name and the museum, linking to /collections/<collection-id>. g-collection-list renders these for you; write one by hand only for a few hand-picked collections inside g-grid, copying values from a ListDepartments entry: collection-id=\"met-11\" or \"aic-PC-10\", name=\"European Paintings\", museum=\"The Met\" or \"Art Institute of Chicago\" (optional, derived from the id prefix), image-url = coverImageUrl, which starts with /__art/ (optional; never a generated /images/ URL, without it the tile is typographic).",
+  "shortDesc": "One collection (museum department) as a tile: a real representative work framed uncropped on a 4:3 mat, the collection name and the museum, linking to /collections/<collection-id>. g-collection-list renders these for you; write one by hand only for a few hand-picked collections inside g-grid, copying values from a ListDepartments entry: collection-id=\"met-11\" or \"aic-PC-10\", name=\"European Paintings\", museum=\"The Met\" or \"Art Institute of Chicago\" (optional, derived from the id prefix), image-url = coverImageUrl, which starts with /__media/ (optional; never a generated /images/ URL, without it the tile is typographic).",
   "role": "leaf",
   "props": [
     { "name": "collection-id", "type": "string", "required": true, "description": "Department id from ListDepartments, e.g. met-11 or aic-PC-10. The tile links to /collections/<collection-id>." },
     { "name": "name", "type": "string", "required": true, "description": "Collection name, e.g. \"European Paintings\"." },
     { "name": "museum", "type": "string", "required": false, "description": "\"Art Institute of Chicago\" or \"The Met\". Defaults from the id prefix (aic-/met-)." },
-    { "name": "image-url", "type": "string", "required": false, "description": "coverImageUrl from ListDepartments (/__art/…). Anything that isn't a /__art/ URL is ignored. Without it the mat shows the name typographically." }
+    { "name": "image-url", "type": "string", "required": false, "description": "coverImageUrl from ListDepartments (/__media/…). Anything that isn't a /__media/ URL is ignored. Without it the mat shows the name typographically." }
   ],
   "slots": [],
   "styling": {

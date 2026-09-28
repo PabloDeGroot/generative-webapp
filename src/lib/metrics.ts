@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 interface LlmRecord {
@@ -10,6 +10,7 @@ interface LlmRecord {
     model: string;
     durationMs: number;
     inputTokens: number;
+    cachedInputTokens: number;
     outputTokens: number;
     totalTokens: number;
     finishReason: string;
@@ -43,7 +44,7 @@ function metricsDir(): string {
 
 const HEADERS = {
     page_requests: 'requestId,route,startedAt,totalDurationMs\n',
-    llm_calls: 'id,contextId,contextType,phase,model,durationMs,inputTokens,outputTokens,totalTokens,finishReason,toolCallsTotal,startedAt\n',
+    llm_calls: 'id,contextId,contextType,phase,model,durationMs,inputTokens,outputTokens,totalTokens,finishReason,toolCallsTotal,startedAt,cachedInputTokens\n',
     tool_calls: 'id,contextId,contextType,toolName,durationMs,ok,startedAt\n',
 } as const;
 
@@ -54,11 +55,19 @@ function csvCell(v: string | number | boolean): string {
         : s;
 }
 
+const checkedHeaders = new Set<string>();
+
 function appendRow(file: keyof typeof HEADERS, fields: (string | number | boolean)[]): void {
     try {
         const dir = metricsDir();
         if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
         const path = join(dir, `${file}.csv`);
+        // A file started with other columns is set aside rather than mixed with the new ones.
+        if (!checkedHeaders.has(path) && existsSync(path)) {
+            checkedHeaders.add(path);
+            const header = readFileSync(path, 'utf8').split('\n', 1)[0] + '\n';
+            if (header !== HEADERS[file]) renameSync(path, join(dir, `${file}.${Date.now()}.csv`));
+        }
         if (!existsSync(path)) writeFileSync(path, HEADERS[file]);
         appendFileSync(path, fields.map(csvCell).join(',') + '\n');
     } catch {
@@ -82,7 +91,7 @@ export function withPageMetrics<T>(requestId: string, route: string, fn: () => P
             const totalDurationMs = Math.round(performance.now() - t0);
             appendRow('page_requests', [ctx.requestId, ctx.route, ctx.wallStart.toISOString(), totalDurationMs]);
             for (const c of ctx.llmCalls) {
-                appendRow('llm_calls', [c.id, c.contextId, c.contextType, c.phase, c.model, c.durationMs, c.inputTokens, c.outputTokens, c.totalTokens, c.finishReason, c.toolCallsTotal, c.startedAt]);
+                appendRow('llm_calls', [c.id, c.contextId, c.contextType, c.phase, c.model, c.durationMs, c.inputTokens, c.outputTokens, c.totalTokens, c.finishReason, c.toolCallsTotal, c.startedAt, c.cachedInputTokens]);
             }
             for (const c of ctx.toolCalls) {
                 appendRow('tool_calls', [c.id, c.contextId, c.contextType, c.toolName, c.durationMs, c.ok, c.startedAt]);
@@ -96,6 +105,7 @@ export function recordLlmCall(data: {
     model: string;
     durationMs: number;
     inputTokens?: number;
+    cachedInputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
     finishReason?: string;
@@ -112,6 +122,7 @@ export function recordLlmCall(data: {
         model: data.model,
         durationMs: data.durationMs,
         inputTokens: data.inputTokens ?? 0,
+        cachedInputTokens: data.cachedInputTokens ?? 0,
         outputTokens: data.outputTokens ?? 0,
         totalTokens: data.totalTokens ?? 0,
         finishReason: data.finishReason ?? '',

@@ -16,7 +16,7 @@
     "notes": "VITRINE kit. Grouped view: each museum headed by an h3 oxblood small-caps kicker, a hairline rule, and a soft 'n collections' count; groups 44px apart. Rail: scroll-snap row of 220px (240px from 860px) tiles, a hairline track with a gilt position thumb, and 44px square previous/next buttons (hidden when nothing overflows); arrow keys move focus tile to tile and scroll it into view; 10px/8px inner padding so focus rings are not clipped. Loading: 6 mat-coloured skeleton tiles (4:3 frame plus two lines) with a 1.6s pulse. Empty: a rail or limited teaser hides itself and its g-page-section; the full view shows italic serif 'No collections available right now.' A requested museum returning no departments counts as a load failure: .error 'Couldn't load the collections of <museum> right now.' with a ghost 'Try again' (below the other museum's group in the grouped view). Error: .error text with a ghost 'Try again' button. Reduced motion disables smooth scrolling and pulses."
   },
   "dependencies": [
-    { "id": "g-collection-tile", "usage": "One tile per department: collection-id=id, name, museum, image-url=coverImageUrl (a /__art/ URL, or empty for the typographic placeholder)." }
+    { "id": "g-collection-tile", "usage": "One tile per department: collection-id=id, name, museum, image-url=coverImageUrl (a /__media/ URL, or empty for the typographic placeholder)." }
   ],
   "interactions": [
     { "trigger": "component mounts (shared by every instance on the page)", "method": "POST", "route": "/collections", "bodyShape": "READS.collections(): { intent: 'list museum collections (ListDepartments)', museum: 'both', outputFormat: { departments: [{ id, museum, name, coverImageUrl }] } }" }

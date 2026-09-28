@@ -4,13 +4,13 @@ import { Runware } from '@runware/sdk-js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { GoogleAuth } from 'google-auth-library';
 import { getRequestToolkit } from '$lib/server/toolkit';
-import { actionCacheKey, actionCacheVersion, invalidateActionCache, readCachedAction, writeCachedAction } from '$lib/server/action-cache';
+import { CACHE_ONLY_HEADER, actionCacheKey, actionCacheVersion, invalidateActionCache, readCachedAction, writeCachedAction } from '$lib/server/action-cache';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { error as httpError } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { PUBLIC_FIREBASE_PROJECT_ID } from '$env/static/public';
-import { logger } from '$lib/logger';
+import { currentRequestId, logger } from '$lib/logger';
 import { recordLlmCall, recordToolCall } from '$lib/metrics';
 
 import pageDesignerPrompt from '../../../prompts/page_designer.md?raw';
@@ -27,12 +27,16 @@ function requireEnv(name: string): string {
     return value.trim();
 }
 
-const PAGE_DESIGNER_MODEL = () => requireEnv('PAGE_DESIGNER_MODEL');
-const HTML_GENERATOR_MODEL = () => requireEnv('HTML_GENERATOR_MODEL');
-const ACTION_RUNNER_MODEL = () => requireEnv('ACTION_RUNNER_MODEL');
-const IMAGE_DESCRIPTION_MODEL = () => requireEnv('IMAGE_DESCRIPTION_MODEL');
+// Each LLM step's model, reasoning effort and temperature can be overridden from the /__debug
+// settings page ($lib/server/pipeline-config); the env variable gives the default model.
+const PAGE_DESIGNER_SETTINGS = () => pipelineSettings('PAGE_DESIGNER_MODEL');
+const HTML_GENERATOR_SETTINGS = () => pipelineSettings('HTML_GENERATOR_MODEL');
+const ACTION_RUNNER_SETTINGS = () => pipelineSettings('ACTION_RUNNER_MODEL');
+const IMAGE_DESCRIPTION_SETTINGS = () => pipelineSettings('IMAGE_DESCRIPTION_MODEL');
 const IMAGE_GENERATION_MODEL = () => requireEnv('IMAGE_GENERATION_MODEL');
 import { resolveLanguageModel, resolveProviderName } from './model-provider';
+import { pipelineSettings } from '$lib/server/pipeline-config';
+import { describeSettings, stepCallOptions, type StepSettings } from '$functions/pipeline-steps';
 import { loadUserPreferences, formatPreferencesForPrompt, type UserPreference } from './user-preferences';
 import { cerebras } from '@ai-sdk/cerebras';
 
@@ -178,18 +182,58 @@ function parseToolJson(content: unknown): unknown {
     }
 }
 
+export interface LlmUsage {
+    inputTokens: number;
+    /** Input tokens served from the provider's prompt cache (Cerebras reports them; 0 otherwise). */
+    cachedInputTokens: number;
+    outputTokens: number;
+}
+
+/** One timed piece of a page generation, for the /__debug timeline. Times are epoch milliseconds. */
+export interface TraceSpan {
+    label: string;
+    kind: 'page' | 'phase' | 'llm' | 'tool' | 'mcp' | 'db';
+    start: number;
+    end: number;
+    detail?: string;
+    failed?: boolean;
+}
+
 interface ToolLoopResult {
     finalText: string;
     toolInvocations: ToolInvocation[];
+    usage: LlmUsage;
+    trace: TraceSpan[];
+}
+
+const usageDetail = (u: LlmUsage) => `in ${u.inputTokens} (cached ${u.cachedInputTokens}) · out ${u.outputTokens}`;
+
+type SdkUsage = { inputTokens?: number; outputTokens?: number; inputTokenDetails?: { cacheReadTokens?: number } };
+
+function llmUsage(usage: SdkUsage | undefined): LlmUsage {
+    return {
+        inputTokens: usage?.inputTokens ?? 0,
+        cachedInputTokens: usage?.inputTokenDetails?.cacheReadTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0
+    };
+}
+
+function addUsage(a: LlmUsage, b: LlmUsage): LlmUsage {
+    return {
+        inputTokens: a.inputTokens + b.inputTokens,
+        cachedInputTokens: a.cachedInputTokens + b.cachedInputTokens,
+        outputTokens: a.outputTokens + b.outputTokens
+    };
 }
 
 // readOnly comes from the tool's readOnlyHint annotation; the action cache relies on it.
-interface ToolInvocation {
+export interface ToolInvocation {
     name: string;
     args: Record<string, unknown>;
     result: unknown;
     readOnly: boolean;
     failed: boolean;
+    durationMs?: number;
 }
 
 interface McpToolDescriptor {
@@ -201,16 +245,27 @@ interface McpToolDescriptor {
 
 async function runMcpToolLoop(input: {
     request: Request;
-    model: string;
+    settings: StepSettings;
     systemPrompt: string;
     userPrompt: string;
     allowTool?: (descriptor: McpToolDescriptor) => boolean;
     scope: string;
     idToken?: string;
+    /**
+     * Opens the first user message, before userPrompt: stable context fetched with the run's MCP
+     * client (e.g. the component library). Keep it deterministic so it stays in the cached prefix.
+     */
+    preamble?: { label: string; load: (mcp: Client) => Promise<string> };
 }): Promise<ToolLoopResult> {
-    const result: ToolLoopResult = { finalText: '', toolInvocations: [] };
+    const result: ToolLoopResult = { finalText: '', toolInvocations: [], usage: llmUsage(undefined), trace: [] };
+    const trace = result.trace;
+    const loopStartedAt = Date.now();
+    const model = input.settings.model;
+    const described = describeSettings(input.settings);
+    // The run's cache key keeps all its steps on one Cerebras prompt-cache backend.
+    const callOptions = stepCallOptions(input.settings, `${currentRequestId() ?? crypto.randomUUID()}:${input.scope}`);
     const loopLog = log.child(`loop.${input.scope}`, {
-        model: input.model,
+        model: model,
         prompt_chars: input.userPrompt.length,
         system_chars: input.systemPrompt.length
     });
@@ -221,11 +276,27 @@ async function runMcpToolLoop(input: {
         const allowed = ((listed?.tools ?? []) as McpToolDescriptor[])
             .filter((t) => !input.allowTool || input.allowTool(t));
         listStop({ tool_count: allowed.length });
+        trace.push({ label: 'MCP connect + list tools', kind: 'mcp', start: loopStartedAt, end: Date.now(), detail: `${allowed.length} tools` });
 
         const domainInstructions = (mcp.getInstructions?.() ?? '').trim();
         const systemPrompt = domainInstructions
             ? `${input.systemPrompt}\n\nDomain context:\n${domainInstructions}`
             : input.systemPrompt;
+
+        // Prompt order, most stable first so the provider can reuse the cached prefix: system prompt
+        // and domain context, tool definitions, the preamble, then this request's own input.
+        let userPrompt = input.userPrompt;
+        if (input.preamble) {
+            const preambleStartedAt = Date.now();
+            try {
+                const preamble = (await input.preamble.load(mcp)).trim();
+                if (preamble) userPrompt = `${preamble}\n\n${input.userPrompt}`;
+                trace.push({ label: input.preamble.label, kind: 'mcp', start: preambleStartedAt, end: Date.now(), detail: `${preamble.length} chars` });
+            } catch (error) {
+                loopLog.warn('preamble_failed', { error });
+                trace.push({ label: input.preamble.label, kind: 'mcp', start: preambleStartedAt, end: Date.now(), failed: true });
+            }
+        }
 
         const tools: Record<string, unknown> = {};
         for (const descriptor of allowed) {
@@ -241,6 +312,11 @@ async function runMcpToolLoop(input: {
                         ? rawArgs as Record<string, unknown>
                         : {};
                     const toolStartedAt = new Date();
+                    const traceTool = (failed: boolean) => {
+                        const end = Date.now();
+                        trace.push({ label: descriptor.name, kind: 'tool', start: toolStartedAt.getTime(), end, failed });
+                        return end - toolStartedAt.getTime();
+                    };
                     const toolStop = loopLog.time('tool_call', {
                         tool: descriptor.name,
                         args: JSON.stringify(args)
@@ -252,7 +328,7 @@ async function runMcpToolLoop(input: {
                         if (response.isError) {
                             throw new Error(typeof parsed === 'string' && parsed ? parsed : `${descriptor.name} failed.`);
                         }
-                        result.toolInvocations.push({ name: descriptor.name, args, result: parsed, readOnly: descriptor.annotations?.readOnlyHint === true, failed: false });
+                        result.toolInvocations.push({ name: descriptor.name, args, result: parsed, readOnly: descriptor.annotations?.readOnlyHint === true, failed: false, durationMs: traceTool(false) });
                         const toolDuration = toolStop({
                             ok: true,
                             result_chars: typeof parsed === 'string' ? parsed.length : JSON.stringify(parsed ?? null).length
@@ -261,7 +337,7 @@ async function runMcpToolLoop(input: {
                         return parsed ?? null;
                     } catch (error) {
                         const message = error instanceof Error ? error.message : 'Unknown tool error';
-                        result.toolInvocations.push({ name: descriptor.name, args, result: { error: message }, readOnly: descriptor.annotations?.readOnlyHint === true, failed: true });
+                        result.toolInvocations.push({ name: descriptor.name, args, result: { error: message }, readOnly: descriptor.annotations?.readOnlyHint === true, failed: true, durationMs: traceTool(true) });
                         const toolDuration = toolStop({ ok: false, error });
                         recordToolCall({ toolName: descriptor.name, durationMs: toolDuration, ok: false, startedAt: toolStartedAt });
                         loopLog.warn('tool_call_failed', { tool: descriptor.name, error });
@@ -273,14 +349,32 @@ async function runMcpToolLoop(input: {
 
         const llmStartedAt = new Date();
         const llmStop = loopLog.time('llm_call');
+        // A step is one model call followed by the tools it asked for; the model's share ends where
+        // the step's first tool call starts.
+        let stepStartedAt = Date.now();
         try {
             const generation = await generateText({
-                model: resolveLanguageModel(input.model),
+                model: resolveLanguageModel(model),
                 system: systemPrompt,
-                prompt: input.userPrompt,
+                prompt: userPrompt,
                 tools: tools as Parameters<typeof generateText>[0]['tools'],
                 stopWhen: stepCountIs(MAX_TOOL_LOOP_ITERATIONS),
+                ...callOptions,
+                prepareStep() {
+                    stepStartedAt = Date.now();
+                    return undefined;
+                },
                 onStepFinish(step) {
+                    const firstTool = trace
+                        .filter((t) => t.kind === 'tool' && t.start >= stepStartedAt)
+                        .reduce((min, t) => Math.min(min, t.start), Number.POSITIVE_INFINITY);
+                    trace.push({
+                        label: `Model step ${step.stepNumber + 1}`,
+                        kind: 'llm',
+                        start: stepStartedAt,
+                        end: Number.isFinite(firstTool) ? firstTool : Date.now(),
+                        detail: `${described} · ${step.toolCalls.length} tool calls · ${usageDetail(llmUsage(step.usage))} · ${step.finishReason}`
+                    });
                     loopLog.debug('step_finished', {
                         step_number: step.stepNumber,
                         tool_calls: step.toolCalls.length,
@@ -288,18 +382,22 @@ async function runMcpToolLoop(input: {
                     });
                 }
             });
+            result.usage = llmUsage(generation.totalUsage);
             const llmDuration = llmStop({
                 ok: true,
                 steps: generation.steps.length,
                 tool_calls_total: result.toolInvocations.length,
                 finish_reason: generation.finishReason,
-                total_tokens: generation.totalUsage.totalTokens
+                total_tokens: generation.totalUsage.totalTokens,
+                input_tokens: result.usage.inputTokens,
+                cached_input_tokens: result.usage.cachedInputTokens
             });
             recordLlmCall({
                 phase: `designer.${input.scope}`,
-                model: input.model,
+                model: model,
                 durationMs: llmDuration,
                 inputTokens: generation.totalUsage.inputTokens,
+                cachedInputTokens: result.usage.cachedInputTokens,
                 outputTokens: generation.totalUsage.outputTokens,
                 totalTokens: generation.totalUsage.totalTokens,
                 finishReason: generation.finishReason,
@@ -316,10 +414,10 @@ async function runMcpToolLoop(input: {
                 const finalStop = loopLog.time('final_answer');
                 try {
                     const final = await generateText({
-                        model: resolveLanguageModel(input.model),
+                        model: resolveLanguageModel(model),
                         system: systemPrompt,
                         messages: [
-                            { role: 'user', content: input.userPrompt },
+                            { role: 'user', content: userPrompt },
                             ...generation.response.messages,
                             {
                                 role: 'user',
@@ -327,9 +425,12 @@ async function runMcpToolLoop(input: {
                             }
                         ],
                         tools: tools as Parameters<typeof generateText>[0]['tools'],
-                        toolChoice: 'none'
+                        toolChoice: 'none',
+                        ...callOptions
                     });
                     result.finalText = final.text ?? '';
+                    result.usage = addUsage(result.usage, llmUsage(final.totalUsage));
+                    trace.push({ label: 'Final answer (tool budget used up)', kind: 'llm', start: finalStartedAt.getTime(), end: Date.now(), detail: `${described} · ${usageDetail(llmUsage(final.totalUsage))}` });
                     const finalDuration = finalStop({
                         ok: Boolean(result.finalText.trim()),
                         finish_reason: final.finishReason,
@@ -337,9 +438,10 @@ async function runMcpToolLoop(input: {
                     });
                     recordLlmCall({
                         phase: `designer.${input.scope}.final_answer`,
-                        model: input.model,
+                        model: model,
                         durationMs: finalDuration,
                         inputTokens: final.totalUsage.inputTokens,
+                        cachedInputTokens: final.totalUsage.inputTokenDetails?.cacheReadTokens,
                         outputTokens: final.totalUsage.outputTokens,
                         totalTokens: final.totalUsage.totalTokens,
                         finishReason: final.finishReason,
@@ -371,29 +473,40 @@ export interface DesignedPage {
     pageSpec: PageSpec;
     rawDesignerOutput: string;
     usedComponentIds: string[];
+    toolInvocations: ToolInvocation[];
+    usage: LlmUsage;
+    trace: TraceSpan[];
+    model: string;
 }
 
 export async function DesignPage(request: Request, route: string, idToken?: string, userId?: string): Promise<DesignedPage> {
-    const pageDesignerModel = PAGE_DESIGNER_MODEL();
+    const designerSettings = await PAGE_DESIGNER_SETTINGS();
+    const pageDesignerModel = designerSettings.model;
     const stop = log.child('design').time('design', { route, model: pageDesignerModel, authenticated: Boolean(idToken) });
     trackAIInteraction('page_designer_request', pageDesignerModel);
 
     const allowTool = (d: McpToolDescriptor) =>
         COMPONENT_TOOLS.has(d.name) || d.annotations?.readOnlyHint === true;
 
+    // The route goes last: everything before it is the same for every page of the toolkit (and user),
+    // so the provider can serve it from its prompt cache.
+    const prefsStartedAt = Date.now();
     const userPreferences = await loadUserPreferences(userId);
-    const userPromptObj: Record<string, unknown> = { route };
+    const prefsSpan: TraceSpan = { label: 'Load user preferences', kind: 'db', start: prefsStartedAt, end: Date.now(), detail: `${userPreferences.length} preferences` };
+    const userPromptObj: Record<string, unknown> = {};
     if (userPreferences.length) {
         userPromptObj.userPreferences = userPreferences.map((p) => p.text);
     }
-    const { finalText, toolInvocations } = await runMcpToolLoop({
+    userPromptObj.route = route;
+    const { finalText, toolInvocations, usage, trace } = await runMcpToolLoop({
         request,
-        model: pageDesignerModel,
+        settings: designerSettings,
         systemPrompt: pageDesignerPrompt,
         userPrompt: JSON.stringify(userPromptObj),
         allowTool,
         scope: 'designer',
-        idToken
+        idToken,
+        preamble: { label: 'Preload component library (GetAllComponents)', load: componentLibraryPreamble }
     });
 
     const pageSpec = parsePageSpec(finalText);
@@ -408,7 +521,23 @@ export async function DesignPage(request: Request, route: string, idToken?: stri
         spec_chars: finalText.length
     });
 
-    return { pageSpec, rawDesignerOutput: finalText, usedComponentIds: used };
+    return { pageSpec, rawDesignerOutput: finalText, usedComponentIds: used, toolInvocations, usage, trace: [prefsSpan, ...trace], model: describeSettings(designerSettings) };
+}
+
+/**
+ * The component library overview (GetAllComponents), preloaded into the page designer's first
+ * message so it needn't spend a tool-loop turn on it. Sorted and one entry per line so the text
+ * is identical from page to page and stays in the cached prompt prefix.
+ */
+async function componentLibraryPreamble(mcp: Client): Promise<string> {
+    const response = await mcp.callTool({ name: 'GetAllComponents', arguments: {} });
+    const summaries = parseToolJson(response.content);
+    if (response.isError || !Array.isArray(summaries)) throw new Error('GetAllComponents failed.');
+    const lines = (summaries as Array<{ id?: unknown }>)
+        .filter((c) => typeof c?.id === 'string')
+        .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+        .map((c) => JSON.stringify(c));
+    return ['Existing components (the result of GetAllComponents, one per line):', ...lines].join('\n');
 }
 
 function parsePageSpec(rawText: string): PageSpec {
@@ -440,7 +569,8 @@ function parsePageSpec(rawText: string): PageSpec {
 }
 
 function stripCodeFence(value: string): string {
-    const trimmed = value.trim();
+    // Some models (e.g. Qwen) write their reasoning inline as <think>…</think> before the answer.
+    const trimmed = value.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     if (!trimmed.startsWith('```')) {
         return trimmed;
     }
@@ -482,9 +612,10 @@ function collectComponentIds(
     return Array.from(ids);
 }
 
-export async function RequestHtml(_request: Request, pageSpec: PageSpec, usedComponentIds: string[]): Promise<string> {
+export async function RequestHtml(_request: Request, pageSpec: PageSpec, usedComponentIds: string[]): Promise<{ html: string; usage: LlmUsage; model: string }> {
     const renderLog = log.child('render');
-    const htmlGeneratorModel = HTML_GENERATOR_MODEL();
+    const htmlSettings = await HTML_GENERATOR_SETTINGS();
+    const htmlGeneratorModel = htmlSettings.model;
     const stop = renderLog.time('render', {
         model: htmlGeneratorModel,
         provider: resolveProviderName(htmlGeneratorModel),
@@ -503,14 +634,15 @@ export async function RequestHtml(_request: Request, pageSpec: PageSpec, usedCom
         const result = await generateText({
             model: resolveLanguageModel(htmlGeneratorModel),
             system: htmlGeneratorPrompt,
-            prompt: userPrompt
+            prompt: userPrompt,
+            ...stepCallOptions(htmlSettings)
         });
         const llmDurationMs = Math.round(performance.now() - llmT0);
 
         if (typeof result.text !== 'string' || !result.text.trim()) {
             trackWebsiteGeneration(JSON.stringify(pageSpec), false);
             stop({ ok: false, reason: 'empty_content' });
-            return '<!-- Error generating HTML: No content returned -->';
+            return { html: '<!-- Error generating HTML: No content returned -->', usage: llmUsage(result.usage), model: describeSettings(htmlSettings) };
         }
 
         const cleaned = result.text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
@@ -519,6 +651,7 @@ export async function RequestHtml(_request: Request, pageSpec: PageSpec, usedCom
             ok: true,
             html_chars: cleaned.length,
             input_tokens: result.usage.inputTokens,
+            cached_input_tokens: result.usage.inputTokenDetails?.cacheReadTokens,
             output_tokens: result.usage.outputTokens,
             total_tokens: result.totalUsage.totalTokens
         });
@@ -527,17 +660,18 @@ export async function RequestHtml(_request: Request, pageSpec: PageSpec, usedCom
             model: htmlGeneratorModel,
             durationMs: llmDurationMs,
             inputTokens: result.usage.inputTokens,
+            cachedInputTokens: result.usage.inputTokenDetails?.cacheReadTokens,
             outputTokens: result.usage.outputTokens,
             totalTokens: result.totalUsage.totalTokens,
             finishReason: result.finishReason,
             startedAt: llmStartedAt,
         });
-        return cleaned;
+        return { html: cleaned, usage: llmUsage(result.usage), model: describeSettings(htmlSettings) };
     } catch (error) {
         trackWebsiteGeneration(JSON.stringify(pageSpec), false);
         stop({ ok: false, error });
         renderLog.error('render_failed', { error });
-        return '<!-- Error generating HTML ' + (error instanceof Error ? error.message : error) + ' -->';
+        return { html: '<!-- Error generating HTML ' + (error instanceof Error ? error.message : error) + ' -->', usage: llmUsage(undefined), model: describeSettings(htmlSettings) };
     }
 }
 
@@ -546,10 +680,21 @@ export interface GeneratedPage {
     html: string;
     pageSpec: PageSpec;
     usedComponentIds: string[];
+    /** The page designer's MCP tool calls, in order (for the /__debug page log). */
+    toolInvocations: ToolInvocation[];
+    timings: { designMs: number; htmlMs: number };
+    usage: { design: LlmUsage; html: LlmUsage };
+    /** Timed pieces of the design and HTML phases (see TraceSpan). */
+    trace: TraceSpan[];
+    /** The model each phase ran on (overridable from /__debug/settings). */
+    models: { design: string; html: string };
 }
 
 export async function GenerateHtml(request: Request, route: string, idToken?: string, userId?: string): Promise<GeneratedPage> {
+    const designStartedAt = performance.now();
+    const designStartedAtMs = Date.now();
     const designed = await DesignPage(request, route, idToken, userId);
+    const designMs = Math.round(performance.now() - designStartedAt);
     log.info('page_designed', {
         route,
         prompt_chars: designed.rawDesignerOutput,
@@ -562,12 +707,23 @@ export async function GenerateHtml(request: Request, route: string, idToken?: st
         log.warn('page_spec_empty', { route });
         httpError(502, 'The page could not be designed. Please try again.');
     }
-    const html = await RequestHtml(request, designed.pageSpec, designed.usedComponentIds);
+    const htmlStartedAt = performance.now();
+    const htmlStartedAtMs = Date.now();
+    const { html, usage: htmlUsage, model: htmlModel } = await RequestHtml(request, designed.pageSpec, designed.usedComponentIds);
     return {
         prompt: designed.rawDesignerOutput,
         html,
         pageSpec: designed.pageSpec,
-        usedComponentIds: designed.usedComponentIds
+        usedComponentIds: designed.usedComponentIds,
+        toolInvocations: designed.toolInvocations,
+        timings: { designMs, htmlMs: Math.round(performance.now() - htmlStartedAt) },
+        usage: { design: designed.usage, html: htmlUsage },
+        trace: [
+            { label: 'Page designer', kind: 'phase', start: designStartedAtMs, end: htmlStartedAtMs, detail: `${designed.model} · ${designed.toolInvocations.length} tool calls · ${usageDetail(designed.usage)}` },
+            ...designed.trace,
+            { label: 'HTML generator', kind: 'llm', start: htmlStartedAtMs, end: Date.now(), detail: `${htmlModel} · ${usageDetail(htmlUsage)}` }
+        ],
+        models: { design: designed.model, html: htmlModel }
     };
 }
 
@@ -576,7 +732,8 @@ export async function GenerateHomePage(request: Request, idToken?: string, userI
 }
 
 async function GetImageDescriptionFromRoute(route: string): Promise<string> {
-    const imageDescriptionModel = IMAGE_DESCRIPTION_MODEL();
+    const imageSettings = await IMAGE_DESCRIPTION_SETTINGS();
+    const imageDescriptionModel = imageSettings.model;
     const stop = log.child('image').time('describe', {
         route,
         model: imageDescriptionModel,
@@ -588,7 +745,8 @@ async function GetImageDescriptionFromRoute(route: string): Promise<string> {
         const result = await generateText({
             model: resolveLanguageModel(imageDescriptionModel),
             system: imageDescriptionPrompt,
-            prompt: route
+            prompt: route,
+            ...stepCallOptions(imageSettings)
         });
 
         const description = result.text ?? '';
@@ -688,10 +846,18 @@ export async function HandleAction(request: Request, idToken?: string, userId?: 
         body: Object.keys(bodyJson).length ? bodyJson : bodyText,
         userId: userId ?? null
     });
-    const cached = await readCachedAction(toolkitId, cacheKey);
+    // The /__debug room sends this header so rendering components never runs the LLM: it gets
+    // whatever is stored for the request (expired or outdated entries included), or a 409.
+    const cacheOnly = request.headers.get(CACHE_ONLY_HEADER) === '1';
+    const cached = await readCachedAction(toolkitId, cacheKey, { allowStale: cacheOnly });
     if (cached) {
-        stop({ cache: 'hit' });
-        return new Response(JSON.stringify(cached.response), { status: 200, headers: actionHeaders('hit') });
+        stop({ cache: 'hit', stale: cached.stale });
+        return new Response(JSON.stringify(cached.response), { status: 200, headers: actionHeaders(cached.stale ? 'stale' : 'hit') });
+    }
+    if (cacheOnly) {
+        stop({ cache: 'miss-cache-only' });
+        const message = 'Not in the action cache, and the debug room is in cache-only mode (turn on live actions to run it).';
+        return new Response(JSON.stringify({ ok: false, message }), { status: 409, headers: actionHeaders('miss-cache-only') });
     }
     const cacheVersion = await actionCacheVersion(toolkitId);
 
@@ -700,7 +866,8 @@ export async function HandleAction(request: Request, idToken?: string, userId?: 
         : '{ "ok": boolean, "message": string, "data": any }';
 
     const authenticated = Boolean(idToken || request.headers.get('authorization'));
-    const actionRunnerModel = ACTION_RUNNER_MODEL();
+    const actionSettings = await ACTION_RUNNER_SETTINGS();
+    const actionRunnerModel = actionSettings.model;
     trackAIInteraction('action_runner_request', actionRunnerModel);
     actionLog.info('action_received', {
         body_keys: Object.keys(bodyJson),
@@ -711,22 +878,25 @@ export async function HandleAction(request: Request, idToken?: string, userId?: 
     const allowTool = (d: McpToolDescriptor) => !COMPONENT_TOOLS.has(d.name);
 
     const userPreferences = await loadUserPreferences(userId);
-    const userPromptObj: Record<string, unknown> = {
+    // Preferences first: they are the same for all of this user's actions, so they extend the
+    // cached prompt prefix; the request itself goes last.
+    const userPromptObj: Record<string, unknown> = {};
+    if (userPreferences.length) {
+        userPromptObj.userPreferences = userPreferences.map((p: UserPreference) => p.text);
+    }
+    Object.assign(userPromptObj, {
         method,
         route,
         body: bodyJson,
         rawBody: bodyJson && Object.keys(bodyJson).length > 0 ? undefined : bodyText,
         //outputFormat,
         authenticated
-    };
-    if (userPreferences.length) {
-        userPromptObj.userPreferences = userPreferences.map((p: UserPreference) => p.text);
-    }
+    });
     const userPrompt = JSON.stringify(userPromptObj);
 
     const { finalText, toolInvocations } = await runMcpToolLoop({
         request,
-        model: actionRunnerModel,
+        settings: actionSettings,
         systemPrompt: actionRunnerPrompt,
         userPrompt,
         allowTool,

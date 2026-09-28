@@ -25,6 +25,36 @@
     return () => window.removeEventListener("session-auth-synced", onSessionChange);
   });
   import "@twind/with-web-components";
+  import { afterNavigate, preloadData } from "$app/navigation";
+  let hoverPreloaded = false;
+  afterNavigate(() => (hoverPreloaded = false));
+
+  // Hover preloading, limited to the first hovered link per page: every preload generates a whole
+  // page with the LLM. app.html sets data-sveltekit-preload-data="tap", so any other link is only
+  // preloaded when it is actually clicked. Done here rather than by SvelteKit's "hover" because its
+  // mousemove listener reads event.target, which misses links inside component shadow roots.
+  onMount(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    const onMouseMove = (event: MouseEvent) => {
+      clearTimeout(timeout);
+      if (hoverPreloaded) return;
+      const path = event.composedPath();
+      const a = path.find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement && node.hasAttribute("href"));
+      if (!a || a.target || a.hasAttribute("download") || a.rel.split(/\s+/).includes("external")) return;
+      if (a.hasAttribute("data-sveltekit-reload") || a.getAttribute("data-sveltekit-preload-data") === "off") return;
+      const url = new URL(a.href, document.baseURI);
+      if (url.origin !== location.origin || url.pathname === location.pathname) return;
+      timeout = setTimeout(() => {
+        hoverPreloaded = true;
+        preloadData(url.href).catch(() => {}); // not a route, or the load failed: navigation will retry
+      }, 150); // longer than SvelteKit's 20 ms, so passing over a link doesn't use up the preload
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener("mousemove", onMouseMove);
+    };
+  });
 
   /*
   onMount(() => {

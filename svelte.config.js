@@ -6,7 +6,13 @@ export default {
   // for more information about preprocessors
   preprocess: vitePreprocess(),
   kit: {
-    adapter: adapter()
+    adapter: adapter(),
+    alias: {
+      // Dependency-free toolkit files the server shares with the functions (e.g. image-proxy.ts).
+      $toolkits: 'functions/src/toolkits',
+      // Dependency-free shared definitions (e.g. pipeline-steps.ts).
+      $functions: 'functions/src'
+    }
   },
   compilerOptions: {
     sourcemap: true,

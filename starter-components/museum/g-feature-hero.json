@@ -93,7 +93,7 @@
       "trigger": "mount with theme",
       "method": "POST",
       "route": "/highlights/<theme>",
-      "bodyShape": "READS.highlights(theme) (GetHighlights, limit 12); if it fails or has no work with an /__art imageUrl, falls back to READS.search(theme) → POST /search/<theme> (SearchArtworks, museum both, limit 24)"
+      "bodyShape": "READS.highlights(theme) (GetHighlights, limit 12); if it fails or has no work with an /__media imageUrl, falls back to READS.search(theme) → POST /search/<theme> (SearchArtworks, museum both, limit 24)"
     },
     {
       "trigger": "mount with no source",
@@ -102,5 +102,5 @@
       "bodyShape": "READS.highlights() (GetHighlights, limit 12, no theme)"
     }
   ],
-  "markupSketch": "<section class=band style=--art-tint aria-labelledby=h><div class=wrap><div class=text><p class=kicker>{kicker}</p><h1 id=h>{heading}</h1><p class=intro>{intro}</p><div class=slot><slot></slot></div></div><a class=work href=/artwork/{id}><figure><div class=stage><img src={imageUrl /__art} alt={imageAlt} loading=eager fetchpriority=high></div><figcaption><i>{title}</i> {artist}, {date} · {museum}</figcaption></figure></a></div></section>"
+  "markupSketch": "<section class=band style=--art-tint aria-labelledby=h><div class=wrap><div class=text><p class=kicker>{kicker}</p><h1 id=h>{heading}</h1><p class=intro>{intro}</p><div class=slot><slot></slot></div></div><a class=work href=/artwork/{id}><figure><div class=stage><img src={imageUrl /__media} alt={imageAlt} loading=eager fetchpriority=high></div><figcaption><i>{title}</i> {artist}, {date} · {museum}</figcaption></figure></a></div></section>"
 }

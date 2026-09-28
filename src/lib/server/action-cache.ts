@@ -15,6 +15,9 @@ const log = logger.child('action-cache');
 const TTL_MS = 15 * 60 * 1000;
 const MAX_RESPONSE_CHARS = 800_000; // stay well under Firestore's 1 MiB document limit
 
+/** Request header of the /__debug room: answer only from the cache, stale entries included. */
+export const CACHE_ONLY_HEADER = 'X-Action-Cache-Only';
+
 const cacheCollection = (toolkitId: string) => getFirestore().collection(`toolkits/${toolkitId}/actionCache`);
 const versionRef = (toolkitId: string) => cacheCollection(toolkitId).doc('_version');
 
@@ -36,14 +39,22 @@ async function currentVersion(toolkitId: string): Promise<number> {
     return (snap.get('version') as number | undefined) ?? 0;
 }
 
-/** The cached response for this key, or null. Never throws: a cache failure just means a miss. */
-export async function readCachedAction(toolkitId: string, key: string): Promise<{ response: unknown; version: number } | null> {
+/**
+ * The cached response for this key, or null. Never throws: a cache failure just means a miss.
+ * allowStale also returns expired entries and ones from before the last write (marked stale).
+ */
+export async function readCachedAction(
+    toolkitId: string,
+    key: string,
+    options: { allowStale?: boolean } = {}
+): Promise<{ response: unknown; version: number; stale: boolean } | null> {
     try {
         const [version, snap] = await Promise.all([currentVersion(toolkitId), cacheCollection(toolkitId).doc(key).get()]);
         if (!snap.exists) return null;
         const entry = snap.data() as { version: number; response: string; expiresAt: Timestamp };
-        if (entry.version !== version || entry.expiresAt.toMillis() < Date.now()) return null;
-        return { response: JSON.parse(entry.response), version };
+        const stale = entry.version !== version || entry.expiresAt.toMillis() < Date.now();
+        if (stale && !options.allowStale) return null;
+        return { response: JSON.parse(entry.response), version, stale };
     } catch (error) {
         log.warn('read_failed', { error });
         return null;
